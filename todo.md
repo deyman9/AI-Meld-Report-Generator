@@ -70,9 +70,9 @@
   - [x] EngagementStatus enum
 - [x] Create Prisma client singleton (`/src/lib/db/prisma.ts`)
 - [x] Add db scripts to package.json
-- [ ] Set up local PostgreSQL database
-- [ ] Run `npx prisma db push`
-- [ ] Verify with `npx prisma studio`
+- [x] Set up PostgreSQL database (Neon cloud)
+- [x] Run `npx prisma db push`
+- [ ] Verify with `npx prisma studio` (optional)
 - [x] Commit schema changes
 
 ### 1.3 Set Up NextAuth with Google OAuth
