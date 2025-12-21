@@ -23,7 +23,7 @@ export default function LoginForm() {
         {/* Logo / Branding */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-white tracking-tight mb-2">
-            MELD Valuation
+            Meld Valuation
           </h1>
           <p className="text-slate-400 text-lg">AI Report Generator</p>
         </div>
@@ -99,7 +99,7 @@ export default function LoginForm() {
 
         {/* Bottom text */}
         <p className="text-center text-slate-500 text-sm mt-6">
-          © {new Date().getFullYear()} MELD Valuation. All rights reserved.
+          © {new Date().getFullYear()} Meld Valuation. All rights reserved.
         </p>
       </div>
     </div>

@@ -16,7 +16,7 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "MELD Report Generator",
+  title: "Meld Report Generator",
   description: "AI-powered valuation report generator",
 };
 

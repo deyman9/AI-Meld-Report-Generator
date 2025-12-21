@@ -102,21 +102,21 @@
 - [x] Test unauthorized email rejection
 - [x] Commit login page
 
-### 1.5 Create Dashboard Layout and Shell
-- [ ] Create dashboard layout (`/src/app/(dashboard)/layout.tsx`)
-- [ ] Implement auth check and redirect
-- [ ] Create DashboardLayout component
-- [ ] Create Header component with:
-  - [ ] Logo/branding
-  - [ ] User email display
-  - [ ] Sign out button
-- [ ] Create dashboard home page
-- [ ] Create Card component
-- [ ] Create EmptyState component
-- [ ] Add navigation links
-- [ ] Test navigation flow
-- [ ] Test sign out
-- [ ] Commit dashboard shell
+### 1.5 Create Dashboard Layout and Shell ✅
+- [x] Create dashboard layout (`/src/app/(dashboard)/layout.tsx`)
+- [x] Implement auth check and redirect
+- [x] Create DashboardLayout component
+- [x] Create Header component with:
+  - [x] Logo/branding
+  - [x] User email display
+  - [x] Sign out button
+- [x] Create dashboard home page
+- [x] Create Card component
+- [x] Create EmptyState component
+- [x] Add navigation links
+- [x] Test navigation flow
+- [x] Test sign out
+- [x] Commit dashboard shell
 
 ---
 
@@ -783,7 +783,7 @@
 
 | Phase | Status | Completion Date |
 |-------|--------|-----------------|
-| Phase 1: Foundation | 🟡 In Progress | |
+| Phase 1: Foundation | ✅ Complete | |
 | Phase 2: File Management | ⬜ Not Started | |
 | Phase 3: Excel Parsing | ⬜ Not Started | |
 | Phase 4: Engagement Flow | ⬜ Not Started | |
