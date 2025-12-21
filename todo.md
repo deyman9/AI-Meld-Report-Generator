@@ -72,7 +72,7 @@
 - [x] Add db scripts to package.json
 - [x] Set up PostgreSQL database (Neon cloud)
 - [x] Run `npx prisma db push`
-- [ ] Verify with `npx prisma studio` (optional)
+- [x] Verify with `npx prisma studio` (optional) - verified via Google OAuth test
 - [x] Commit schema changes
 
 ### 1.3 Set Up NextAuth with Google OAuth ✅
@@ -87,7 +87,7 @@
 - [x] Create requireAuth utility
 - [x] Create SessionProvider wrapper component
 - [x] Update layout.tsx with SessionProvider
-- [ ] Test authentication flow (requires Google OAuth credentials)
+- [x] Test authentication flow (requires Google OAuth credentials)
 - [x] Commit auth setup
 
 ### 1.4 Create Login Page UI
