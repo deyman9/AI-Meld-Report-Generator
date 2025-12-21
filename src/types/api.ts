@@ -61,3 +61,6 @@ export interface UploadFormFields {
   year?: string;
 }
 
+// Re-export ParsedModelResponse for API
+export type { ParsedModelResponse } from './excel';
+
