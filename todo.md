@@ -90,17 +90,17 @@
 - [x] Test authentication flow (requires Google OAuth credentials)
 - [x] Commit auth setup
 
-### 1.4 Create Login Page UI
-- [ ] Create login page (`/src/app/(auth)/login/page.tsx`)
-- [ ] Create LoginForm component
-- [ ] Create reusable Button component with variants
-- [ ] Style login page (centered card, branding)
-- [ ] Implement Google sign-in button
-- [ ] Handle redirect after login
-- [ ] Update root page.tsx with auth redirect
-- [ ] Test login flow end-to-end
-- [ ] Test unauthorized email rejection
-- [ ] Commit login page
+### 1.4 Create Login Page UI ✅
+- [x] Create login page (`/src/app/(auth)/login/page.tsx`)
+- [x] Create LoginForm component
+- [x] Create reusable Button component with variants
+- [x] Style login page (centered card, branding)
+- [x] Implement Google sign-in button
+- [x] Handle redirect after login
+- [x] Update root page.tsx with auth redirect
+- [x] Test login flow end-to-end
+- [x] Test unauthorized email rejection
+- [x] Commit login page
 
 ### 1.5 Create Dashboard Layout and Shell
 - [ ] Create dashboard layout (`/src/app/(dashboard)/layout.tsx`)

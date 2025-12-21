@@ -39,10 +39,10 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
   },
-  // pages: {
-  //   signIn: "/login",
-  //   error: "/login",
-  // },
+  pages: {
+    signIn: "/login",
+    error: "/login",
+  },
   session: {
     strategy: "database",
   },
