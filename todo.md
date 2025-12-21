@@ -75,20 +75,20 @@
 - [ ] Verify with `npx prisma studio` (optional)
 - [x] Commit schema changes
 
-### 1.3 Set Up NextAuth with Google OAuth
-- [ ] Install next-auth and @auth/prisma-adapter
-- [ ] Create auth options (`/src/lib/auth/options.ts`)
-- [ ] Configure Google provider
-- [ ] Implement email whitelist check in signIn callback
-- [ ] Add user.id to session callback
-- [ ] Create NextAuth API route (`/src/app/api/auth/[...nextauth]/route.ts`)
-- [ ] Create session helpers (`/src/lib/auth/session.ts`)
-- [ ] Create type definitions (`/src/types/next-auth.d.ts`)
-- [ ] Create requireAuth utility
-- [ ] Create SessionProvider wrapper component
-- [ ] Update layout.tsx with SessionProvider
-- [ ] Test authentication flow
-- [ ] Commit auth setup
+### 1.3 Set Up NextAuth with Google OAuth ✅
+- [x] Install next-auth and @auth/prisma-adapter
+- [x] Create auth options (`/src/lib/auth/options.ts`)
+- [x] Configure Google provider
+- [x] Implement email whitelist check in signIn callback
+- [x] Add user.id to session callback
+- [x] Create NextAuth API route (`/src/app/api/auth/[...nextauth]/route.ts`)
+- [x] Create session helpers (`/src/lib/auth/session.ts`)
+- [x] Create type definitions (`/src/types/next-auth.d.ts`)
+- [x] Create requireAuth utility
+- [x] Create SessionProvider wrapper component
+- [x] Update layout.tsx with SessionProvider
+- [ ] Test authentication flow (requires Google OAuth credentials)
+- [x] Commit auth setup
 
 ### 1.4 Create Login Page UI
 - [ ] Create login page (`/src/app/(auth)/login/page.tsx`)

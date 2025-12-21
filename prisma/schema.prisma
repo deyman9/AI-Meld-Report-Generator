@@ -24,14 +24,14 @@ enum EngagementStatus {
 
 // Models
 model User {
-  id          String       @id @default(cuid())
-  email       String       @unique
-  googleId    String       @unique
-  name        String?
-  image       String?
-  createdAt   DateTime     @default(now())
-  lastLogin   DateTime     @updatedAt
-  engagements Engagement[]
+  id            String       @id @default(cuid())
+  email         String?      @unique
+  emailVerified DateTime?
+  name          String?
+  image         String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  engagements   Engagement[]
 
   // NextAuth required fields
   accounts    Account[]
