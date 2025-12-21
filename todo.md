@@ -56,24 +56,24 @@
 - [x] Add `.gitignore` (ensure .env.local is ignored)
 - [x] Initial commit to repository
 
-### 1.2 Set Up Prisma and Database
-- [ ] Install Prisma and @prisma/client
-- [ ] Run `npx prisma init`
-- [ ] Create database schema:
-  - [ ] User model
-  - [ ] Template model
-  - [ ] StyleExample model
-  - [ ] EconomicOutlook model
-  - [ ] Engagement model
-  - [ ] GeneratedReport model
-  - [ ] ReportType enum
-  - [ ] EngagementStatus enum
-- [ ] Create Prisma client singleton (`/src/lib/db/prisma.ts`)
-- [ ] Add db scripts to package.json
+### 1.2 Set Up Prisma and Database ✅
+- [x] Install Prisma and @prisma/client
+- [x] Run `npx prisma init`
+- [x] Create database schema:
+  - [x] User model
+  - [x] Template model
+  - [x] StyleExample model
+  - [x] EconomicOutlook model
+  - [x] Engagement model
+  - [x] GeneratedReport model
+  - [x] ReportType enum
+  - [x] EngagementStatus enum
+- [x] Create Prisma client singleton (`/src/lib/db/prisma.ts`)
+- [x] Add db scripts to package.json
 - [ ] Set up local PostgreSQL database
 - [ ] Run `npx prisma db push`
 - [ ] Verify with `npx prisma studio`
-- [ ] Commit schema changes
+- [x] Commit schema changes
 
 ### 1.3 Set Up NextAuth with Google OAuth
 - [ ] Install next-auth and @auth/prisma-adapter
