@@ -44,7 +44,7 @@ export default function TestUploadPage() {
 
       const data = await response.json();
       setResult(data);
-    } catch (error) {
+    } catch {
       setResult({ success: false, error: "Upload failed. Please try again." });
     } finally {
       setIsUploading(false);

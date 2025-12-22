@@ -12,7 +12,7 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async signIn({ user, account, profile }) {
+    async signIn({ user }) {
       // Check if user's email is in the allowed list
       const allowedEmails = process.env.ALLOWED_EMAIL?.split(",").map((e) =>
         e.trim().toLowerCase()

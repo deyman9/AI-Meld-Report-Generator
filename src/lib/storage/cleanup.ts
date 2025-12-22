@@ -34,14 +34,14 @@ export async function cleanupExpiredFiles(): Promise<CleanupResult> {
         },
       },
       include: {
-        reports: true,
+        generatedReports: true,
       },
     });
 
     for (const engagement of expiredEngagements) {
       try {
         // Delete associated report files
-        for (const report of engagement.reports) {
+        for (const report of engagement.generatedReports) {
           if (report.filePath) {
             await deleteFile(report.filePath);
             result.filesDeleted++;
@@ -60,7 +60,7 @@ export async function cleanupExpiredFiles(): Promise<CleanupResult> {
             engagementId: engagement.id,
           },
         });
-        result.reportsDeleted += engagement.reports.length;
+        result.reportsDeleted += engagement.generatedReports.length;
 
         // Delete the engagement
         await prisma.engagement.delete({

@@ -254,7 +254,7 @@ export function findNotesInSheet(workbook: WorkbookData, sheetName: string): str
     }
   }
 
-  return [...new Set(notes)]; // Remove duplicates
+  return Array.from(new Set(notes)); // Remove duplicates
 }
 
 /**

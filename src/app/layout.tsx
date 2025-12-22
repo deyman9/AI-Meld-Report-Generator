@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import SessionProvider from "@/components/providers/SessionProvider";
+import ToastProvider from "@/components/providers/ToastProvider";
+import ErrorBoundary from "@/components/ui/ErrorBoundary";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -31,7 +33,11 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50 min-h-screen`}
       >
         <SessionProvider>
-          <div className="min-h-screen">{children}</div>
+          <ToastProvider>
+            <ErrorBoundary>
+              <div className="min-h-screen">{children}</div>
+            </ErrorBoundary>
+          </ToastProvider>
         </SessionProvider>
       </body>
     </html>

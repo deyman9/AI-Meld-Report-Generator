@@ -55,7 +55,7 @@ export default function TestParserPage() {
 
       const data = await response.json();
       setUploadResult(data);
-    } catch (error) {
+    } catch {
       setUploadResult({ success: false, error: "Upload failed" });
     } finally {
       setIsUploading(false);
@@ -79,7 +79,7 @@ export default function TestParserPage() {
 
       const data = await response.json();
       setParseResult(data);
-    } catch (error) {
+    } catch {
       setParseResult({ success: false, error: "Parsing failed" });
     } finally {
       setIsParsing(false);
