@@ -20,7 +20,10 @@ export async function loadWorkbook(filePath: string): Promise<WorkbookData> {
     const rawWorkbook = XLSX.read(buffer, { 
       type: 'buffer',
       cellDates: true,
-      cellNF: true,
+      cellNF: false,  // Don't parse number formats - saves memory
+      cellStyles: false,  // Don't parse styles - saves memory
+      sheetStubs: false,  // Don't create stubs for empty cells
+      dense: true,  // Use dense array format - more memory efficient
     });
 
     const sheets: SheetInfo[] = rawWorkbook.SheetNames.map((name, index) => ({
@@ -195,31 +198,54 @@ export function extractCompanyInfo(workbook: WorkbookData): CompanyInfo {
 
 /**
  * Extracts exhibits between start and end sheets
+ * Only loads essential sheets to save memory
  */
 export function extractExhibits(workbook: WorkbookData): ExhibitData[] {
   const boundaries = findExhibitBoundaries(workbook);
   
+  // Key exhibit patterns to look for (prioritize these)
+  const keyExhibitPatterns = [
+    /summary/i, /valuation/i, /market/i, /income/i, /opm/i, 
+    /backsolve/i, /transaction/i, /dlom/i, /guideline/i, /dcf/i
+  ];
+  
   if (!boundaries) {
-    // Return all sheets as exhibits if no boundaries found
-    return workbook.sheets.map(sheet => ({
+    // Only return key sheets to save memory (not ALL sheets)
+    const keySheets = workbook.sheets.filter(sheet => 
+      keyExhibitPatterns.some(pattern => pattern.test(sheet.name))
+    );
+    
+    // Limit to first 15 key sheets to prevent memory issues
+    const limitedSheets = keySheets.slice(0, 15);
+    
+    console.log(`Found ${limitedSheets.length} key exhibits: ${JSON.stringify(limitedSheets.map(s => s.name))}`);
+    
+    return limitedSheets.map(sheet => ({
       sheetName: sheet.name,
-      data: getSheetData(workbook, sheet.name),
-      notes: findNotesInSheet(workbook, sheet.name),
+      data: [], // Don't load full data for memory efficiency
+      notes: [],
     }));
   }
 
   const exhibits: ExhibitData[] = [];
   
-  for (let i = boundaries.startIndex + 1; i < boundaries.endIndex; i++) {
+  // Limit exhibits to prevent memory issues
+  const maxExhibits = 20;
+  let count = 0;
+  
+  for (let i = boundaries.startIndex + 1; i < boundaries.endIndex && count < maxExhibits; i++) {
     const sheet = workbook.sheets[i];
     if (sheet) {
       exhibits.push({
         sheetName: sheet.name,
-        data: getSheetData(workbook, sheet.name),
-        notes: findNotesInSheet(workbook, sheet.name),
+        data: [], // Don't load full data initially
+        notes: [],
       });
+      count++;
     }
   }
+  
+  console.log(`Found ${exhibits.length} exhibits: ${JSON.stringify(exhibits.map(e => e.sheetName))}`);
 
   return exhibits;
 }
@@ -344,17 +370,27 @@ export function extractSummaryData(workbook: WorkbookData): SummaryData | null {
 
 /**
  * Extracts DLOM (Discount for Lack of Marketability) from exhibits
+ * Only scans sheets likely to contain DLOM to save memory
  */
 export function extractDLOM(workbook: WorkbookData): number | null {
   const sheets = getSheetNames(workbook);
+  
+  // Only check sheets likely to contain DLOM
+  const dlomSheetPatterns = [/dlom/i, /marketability/i, /discount/i, /summary/i];
+  const relevantSheets = sheets.filter(name => 
+    dlomSheetPatterns.some(pattern => pattern.test(name))
+  );
 
-  for (const sheetName of sheets) {
+  for (const sheetName of relevantSheets) {
     const data = getSheetData(workbook, sheetName);
 
-    for (let row = 0; row < data.length; row++) {
+    // Limit rows scanned to save memory
+    const maxRows = Math.min(100, data.length);
+    
+    for (let row = 0; row < maxRows; row++) {
       const rowData = data[row] || [];
       
-      for (let col = 0; col < rowData.length; col++) {
+      for (let col = 0; col < Math.min(20, rowData.length); col++) {
         const cell = rowData[col];
         
         if (typeof cell === 'string' && /dlom|discount.*lack.*marketability/i.test(cell)) {
