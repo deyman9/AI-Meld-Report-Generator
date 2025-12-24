@@ -23,7 +23,7 @@ export async function loadWorkbook(filePath: string): Promise<WorkbookData> {
       cellNF: false,  // Don't parse number formats - saves memory
       cellStyles: false,  // Don't parse styles - saves memory
       sheetStubs: false,  // Don't create stubs for empty cells
-      dense: true,  // Use dense array format - more memory efficient
+      bookVBA: false,  // Don't parse VBA macros - saves memory
     });
 
     const sheets: SheetInfo[] = rawWorkbook.SheetNames.map((name, index) => ({
