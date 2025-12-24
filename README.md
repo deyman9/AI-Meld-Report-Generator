@@ -1,17 +1,29 @@
-# Meld Report Generator
+# Meld AI Report Generator
 
-An AI-powered valuation report generation platform for Meld Valuation. Automates the creation of 409A and ASC 718 valuation reports by combining Excel model data, AI-generated narratives, and custom templates.
+An AI-powered section generator for valuation reports. Generates the narrative sections of 409A and Gift & Estate (59-60) valuation reports, outputting a clean Word document with all sections ready for copy/paste into your templates.
+
+## What It Does
+
+Instead of generating complete reports from templates, this tool generates the **hard-to-write narrative sections**:
+
+- **Company Overview** - AI-researched company description
+- **Industry Outlook** - AI-generated industry analysis with citations
+- **Economic Outlook** - Pulled from your quarterly outlook documents
+- **Valuation Analysis** - Narratives for each approach (GPC, M&A, Income, Backsolve)
+- **Conclusion & Weighting** - Explanation of weighting rationale
+- **Review Notes** - Flags for items needing attention
+
+The output is a Word document with clearly labeled sections that you can copy into your existing report templates.
 
 ## Features
 
-- **409A & ASC 718 Reports**: Generate comprehensive valuation reports
-- **Excel Model Parsing**: Automatically extract data from valuation Excel models
-- **AI-Powered Narratives**: Use Claude AI to generate professional report sections
-- **Template System**: Customize report structure and formatting
-- **Voice Input**: Record and transcribe company notes using browser audio
-- **Background Processing**: Generate reports asynchronously with status updates
-- **Email Notifications**: Receive alerts when reports are ready
-- **Economic Outlook Integration**: Include relevant market conditions
+- **Excel Model Parsing**: Automatically extracts company name, valuation date, approaches, values, weights, DLOM, and notes
+- **AI-Powered Narratives**: Uses Claude AI to generate professional report sections
+- **Style Matching**: Upload example reports for the AI to match your writing style
+- **Background Processing**: Generate sections asynchronously with progress updates
+- **Email Notifications**: Receive alerts when sections are ready
+- **Economic Outlook Integration**: Pull from stored quarterly outlook documents
+- **30-Day Data Retention**: Automatic cleanup of old engagements
 
 ## Tech Stack
 
@@ -49,7 +61,7 @@ npm install
 cp .env.example .env
 ```
 
-4. Configure environment variables (see [Environment Variables](#environment-variables))
+4. Configure environment variables (see below)
 
 5. Initialize the database:
 ```bash
@@ -65,7 +77,7 @@ npm run dev
 
 ## Environment Variables
 
-Create a `.env` file with the following variables:
+Create a `.env` file with the following:
 
 ```env
 # Database
@@ -88,204 +100,107 @@ SMTP_USER="your-smtp-user"
 SMTP_PASSWORD="your-smtp-password"
 SMTP_FROM="noreply@meldvaluation.com"
 
-# Storage (optional)
+# Storage
 UPLOAD_BASE_PATH="./uploads"
 ```
 
-### Generating Secrets
+## Usage
 
-Generate a secure NEXTAUTH_SECRET:
-```bash
-openssl rand -base64 32
+### Workflow
+
+1. **Select Report Type** - Choose 409A or Gift & Estate (59-60)
+2. **Upload Excel Model** - Upload your valuation model (.xlsx, .xls, .xlsm)
+3. **Enter Context** (optional) - Add qualitative notes about comp selection, weighting rationale, etc.
+4. **Review & Generate** - Verify extracted data and start generation
+5. **Receive Email** - Get notified when sections are ready
+6. **Download** - Get the Word document with all sections
+7. **Copy to Template** - Paste each section into your actual report template
+
+### Output Document
+
+The generated Word document contains:
+
+```
+GENERATED REPORT SECTIONS
+Company Name: [from model]
+Valuation Date: [date]
+Report Type: 409A/59-60
+Generated: [timestamp]
+
+────────────────────────────────
+
+COMPANY OVERVIEW
+[AI-generated narrative]
+
+────────────────────────────────
+
+INDUSTRY OUTLOOK
+[AI-generated narrative with citations]
+
+Sources:
+[1] Source citation...
+
+────────────────────────────────
+
+ECONOMIC OUTLOOK
+[From quarterly outlook document]
+
+────────────────────────────────
+
+VALUATION ANALYSIS - GUIDELINE PUBLIC COMPANY
+[AI-generated narrative]
+
+────────────────────────────────
+
+[Additional approach sections as applicable]
+
+────────────────────────────────
+
+CONCLUSION & WEIGHTING RATIONALE
+[Weighting table and narrative]
+
+────────────────────────────────
+
+FLAGS & REVIEW NOTES
+[Items needing attention]
 ```
 
-### Google OAuth Setup
+### Settings
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project or select existing
-3. Enable the Google+ API
-4. Configure OAuth consent screen
-5. Create OAuth 2.0 credentials
-6. Add authorized redirect URIs:
-   - Development: `http://localhost:3000/api/auth/callback/google`
-   - Production: `https://yourdomain.com/api/auth/callback/google`
+Configure in **Settings**:
+
+- **Economic Outlooks**: Upload quarterly economic outlook documents
+- **Style Examples**: Upload example reports for AI style matching
 
 ## Deployment
 
-### Railway Deployment (Recommended)
+### Railway (Recommended)
 
-1. Create a new project on [Railway](https://railway.app/)
+1. Create a Railway project with PostgreSQL
+2. Deploy from GitHub
+3. Set environment variables
+4. Add a volume mounted at `/app/uploads`
+5. Push to deploy
 
-2. Add a PostgreSQL database:
-   - Click "New" → "Database" → "PostgreSQL"
-   - Copy the DATABASE_URL from the database settings
-
-3. Deploy from GitHub:
-   - Connect your repository
-   - Railway will auto-detect the configuration from `railway.toml`
-
-4. Configure environment variables:
-   - Go to your service settings → Variables
-   - Add all required environment variables
-   - Make sure NEXTAUTH_URL matches your Railway domain
-
-5. Add persistent storage for uploads:
-   - Go to service settings → Volumes
-   - Create a volume mounted at `/app/uploads`
-   - Set `UPLOAD_BASE_PATH=/app/uploads`
-
-6. Deploy:
-   - Push to your connected branch
-   - Railway will automatically build and deploy
-
-### Docker Deployment
-
-Build and run with Docker:
+### Docker
 
 ```bash
-# Build the image
 docker build -t meld-report-generator .
-
-# Run with environment variables
 docker run -p 3000:3000 \
   -e DATABASE_URL="..." \
-  -e GOOGLE_CLIENT_ID="..." \
-  -e GOOGLE_CLIENT_SECRET="..." \
-  -e NEXTAUTH_SECRET="..." \
-  -e NEXTAUTH_URL="..." \
-  -e ALLOWED_EMAIL="..." \
   -e ANTHROPIC_API_KEY="..." \
+  [other env vars] \
   -v ./uploads:/app/uploads \
   meld-report-generator
 ```
 
-### Docker Compose
+## File Naming
 
-```yaml
-version: '3.8'
-services:
-  app:
-    build: .
-    ports:
-      - "3000:3000"
-    environment:
-      - DATABASE_URL=postgresql://postgres:password@db:5432/meld
-      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
-      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
-      - NEXTAUTH_URL=http://localhost:3000
-      - ALLOWED_EMAIL=${ALLOWED_EMAIL}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-    volumes:
-      - uploads:/app/uploads
-    depends_on:
-      - db
-
-  db:
-    image: postgres:15-alpine
-    environment:
-      - POSTGRES_DB=meld
-      - POSTGRES_PASSWORD=password
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-volumes:
-  uploads:
-  postgres_data:
+Output files are named:
 ```
-
-## Project Structure
-
+[Company Name] - [Report Type] - [Valuation Date] - SECTIONS.docx
 ```
-src/
-├── app/                    # Next.js App Router
-│   ├── (auth)/            # Authentication pages
-│   ├── (dashboard)/       # Protected dashboard routes
-│   └── api/               # API routes
-├── components/            # React components
-│   ├── auth/              # Authentication components
-│   ├── dashboard/         # Dashboard components
-│   ├── engagement/        # Report flow components
-│   ├── settings/          # Settings page components
-│   └── ui/                # Reusable UI components
-├── lib/                   # Core libraries
-│   ├── ai/                # AI integration (Claude)
-│   ├── auth/              # Authentication config
-│   ├── document/          # Word document generation
-│   ├── email/             # Email notifications
-│   ├── excel/             # Excel parsing
-│   ├── generation/        # Report generation pipeline
-│   ├── jobs/              # Background job queue
-│   ├── research/          # Web research utilities
-│   └── storage/           # File storage
-├── types/                 # TypeScript type definitions
-└── styles/                # Global styles
-```
-
-## API Endpoints
-
-### Authentication
-- `GET /api/auth/[...nextauth]` - NextAuth.js handlers
-
-### Engagements
-- `GET /api/engagements` - List engagements
-- `POST /api/engagements` - Create new engagement
-- `GET /api/engagements/[id]` - Get engagement details
-
-### Generation
-- `POST /api/generate` - Start report generation
-- `GET /api/generate/status` - Check generation status
-
-### Settings
-- `GET/POST/DELETE /api/settings/templates` - Manage templates
-- `GET/POST/DELETE /api/settings/outlooks` - Manage outlooks
-- `GET/POST/DELETE /api/settings/examples` - Manage examples
-
-### Health
-- `GET /api/health` - Health check endpoint
-
-## Scripts
-
-```bash
-npm run dev      # Start development server
-npm run build    # Build for production
-npm run start    # Start production server
-npm run lint     # Run ESLint
-npm run db:push  # Push Prisma schema to database
-npm run db:studio # Open Prisma Studio
-```
-
-## Usage Guide
-
-### Creating a Report
-
-1. **Login**: Sign in with authorized Google account
-2. **New Report**: Click "New Report" button
-3. **Select Type**: Choose 409A or ASC 718
-4. **Upload Model**: Upload the Excel valuation model
-5. **Add Notes**: Record or type company notes
-6. **Review**: Verify extracted data
-7. **Generate**: Start AI report generation
-8. **Download**: Access completed report from dashboard
-
-### Settings Configuration
-
-- **Templates**: Upload Word templates for report structure
-- **Outlooks**: Add quarterly economic outlook documents
-- **Style Examples**: Provide example documents for AI style matching
-
-## Contributing
-
-1. Create a feature branch
-2. Make your changes
-3. Run linting: `npm run lint`
-4. Build to verify: `npm run build`
-5. Submit a pull request
 
 ## License
 
 Proprietary - Meld Valuation
-
-## Support
-
-For support, contact the development team or open an issue in the repository.

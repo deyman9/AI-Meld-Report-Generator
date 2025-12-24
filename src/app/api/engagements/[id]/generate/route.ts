@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth/options";
+import { getServerSession } from "@/lib/auth/session";
 import prisma from "@/lib/db/prisma";
 import { queueGenerationJob } from "@/lib/jobs";
 
@@ -11,7 +10,7 @@ interface RouteParams {
 // POST /api/engagements/[id]/generate - Trigger report generation
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession();
 
     if (!session?.user?.id) {
       return NextResponse.json(

@@ -18,31 +18,12 @@ export {
   createReportDocument,
 } from "./generator";
 
-// Template
-export {
-  loadTemplate,
-  findPlaceholders,
-  identifySections,
-  validateTemplate,
-  extractTemplateText,
-} from "./template";
-
 // Assembler
 export {
   assembleReport,
   saveReport,
   generateReport,
 } from "./assembler";
-
-// Placeholders
-export {
-  PLACEHOLDER_MAP,
-  buildReportData,
-  replacePlaceholder,
-  replaceAllPlaceholders,
-  findUnreplacedPlaceholders,
-  markUnreplacedPlaceholders,
-} from "./placeholders";
 
 // Footnotes
 export {
@@ -55,4 +36,3 @@ export {
 
 // Styles
 export * from "./styles";
-

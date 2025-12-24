@@ -1,91 +1,87 @@
 /**
- * Report Assembler
- * Assembles final report document from template and generated content
+ * Report Section Assembler
+ * Creates a clean Word document containing all generated sections
+ * for easy copy/paste into existing templates
  */
 
-import { Paragraph } from "docx";
+import { Paragraph, Table } from "docx";
 import {
   createDocument,
   createHeading,
   createParagraph,
   createPlaceholder,
   createFlaggedContent,
-  createCapTablePlaceholder,
-  createPageBreak,
   generateDocumentBuffer,
+  createTable,
 } from "./generator";
-import { buildReportData } from "./placeholders";
+
+type DocumentChild = Paragraph | Table;
 import { addFootnotes } from "./footnotes";
 import { STORAGE_DIRS, generateFileName, saveFile } from "@/lib/storage";
 import type { Engagement } from "@prisma/client";
 import type { ReportContent, Flag } from "@/types/generation";
-import type { TemplateContent } from "@/types/template";
 import type { DocumentOptions, GeneratedDocument } from "@/types/document";
 
 /**
- * Assemble a complete report document
+ * Create a horizontal separator line
+ */
+function createSeparator(): Paragraph {
+  return createParagraph("─".repeat(60), {
+    spacing: { before: 400, after: 400 },
+    alignment: "center",
+  });
+}
+
+/**
+ * Assemble a sections document with all generated content
  */
 export async function assembleReport(
-  template: TemplateContent | null,
-  content: ReportContent,
-  engagement: Engagement
+  content: ReportContent
 ): Promise<Buffer> {
-  // Build report data for placeholder replacement
-  const reportData = buildReportData(engagement, content);
-
-  // Create document options
   const docOptions: DocumentOptions = {
     companyName: content.companyName,
     valuationDate: content.valuationDate,
     reportType: content.reportType,
-    includeHeader: true,
+    includeHeader: false,
     includeFooter: true,
   };
 
-  // Build document sections
-  const sections: Paragraph[] = [];
+  const sections: DocumentChild[] = [];
 
-  // Title page
-  sections.push(...createTitleSection(content, reportData));
-  sections.push(createPageBreak());
-
-  // Table of Contents placeholder
-  sections.push(createHeading("Table of Contents", 1));
-  sections.push(createPlaceholder("Generate Table of Contents in Word"));
-  sections.push(createPageBreak());
-
-  // Executive Summary
-  sections.push(createHeading("Executive Summary", 1));
-  sections.push(...createExecutiveSummary(content, reportData));
-  sections.push(createPageBreak());
+  // Header Section
+  sections.push(...createHeaderSection(content));
+  sections.push(createSeparator());
 
   // Company Overview
-  sections.push(createHeading("Company Overview", 1));
+  sections.push(createHeading("COMPANY OVERVIEW", 1));
   sections.push(...createCompanySection(content));
+  sections.push(createSeparator());
 
   // Industry Outlook
-  sections.push(createHeading("Industry Overview", 1));
+  sections.push(createHeading("INDUSTRY OUTLOOK", 1));
   sections.push(...createIndustrySection(content));
+  sections.push(createSeparator());
 
   // Economic Outlook
-  sections.push(createHeading("Economic Environment", 1));
+  sections.push(createHeading("ECONOMIC OUTLOOK", 1));
   sections.push(...createEconomicSection(content));
-  sections.push(createPageBreak());
+  sections.push(createSeparator());
 
-  // Valuation Methodology
-  sections.push(createHeading("Valuation Analysis", 1));
-  sections.push(...createValuationSection(content));
-
-  // Conclusion
-  sections.push(createHeading("Conclusion of Value", 1));
-  sections.push(...createConclusionSection(content));
-
-  // Flags summary (if any)
-  if (content.flags.length > 0) {
-    sections.push(createPageBreak());
-    sections.push(createHeading("Items Requiring Review", 1));
-    sections.push(...createFlagsSection(content.flags));
+  // Valuation Analysis Sections
+  for (const narrative of content.approachNarratives) {
+    sections.push(createHeading(`VALUATION ANALYSIS - ${narrative.approachName.toUpperCase()}`, 1));
+    sections.push(...createApproachSection(narrative));
+    sections.push(createSeparator());
   }
+
+  // Conclusion & Weighting
+  sections.push(createHeading("CONCLUSION & WEIGHTING RATIONALE", 1));
+  sections.push(...createConclusionSection(content));
+  sections.push(createSeparator());
+
+  // Flags & Review Notes
+  sections.push(createHeading("FLAGS & REVIEW NOTES", 1));
+  sections.push(...createFlagsSection(content.flags, content));
 
   // Create and return document
   const doc = createDocument(docOptions, sections);
@@ -93,88 +89,44 @@ export async function assembleReport(
 }
 
 /**
- * Create title section
+ * Create header section with metadata
  */
-function createTitleSection(content: ReportContent, reportData: { reportType: string; valuationDate: string }): Paragraph[] {
-  const sections: Paragraph[] = [];
-
-  // Add some spacing at top
-  sections.push(createParagraph("", { spacing: { before: 2000 } }));
-
-  // Report type title
-  const title = content.reportType === "FOUR09A"
-    ? "409A Valuation Report"
-    : "Business Valuation Report";
+function createHeaderSection(content: ReportContent): DocumentChild[] {
+  const sections: DocumentChild[] = [];
+  const reportTypeLabel = content.reportType === "FOUR09A" ? "409A Valuation" : "Gift & Estate (59-60)";
+  const dateStr = content.valuationDate.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  const generatedStr = new Date().toLocaleString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
   sections.push(
-    createParagraph(title, {
+    createParagraph("GENERATED REPORT SECTIONS", {
       bold: true,
       alignment: "center",
       spacing: { after: 400 },
     })
   );
 
-  // Company name
-  sections.push(
-    createParagraph(content.companyName, {
-      bold: true,
-      alignment: "center",
-      spacing: { after: 400 },
-    })
-  );
-
-  // Subtitle
-  const subtitle = content.reportType === "FOUR09A"
-    ? "Fair Market Value of Common Stock"
-    : "Fair Market Value Determination";
-
-  sections.push(
-    createParagraph(subtitle, {
-      italic: true,
-      alignment: "center",
-      spacing: { after: 600 },
-    })
-  );
-
-  // Valuation date
-  sections.push(
-    createParagraph(`As of ${reportData.valuationDate}`, {
-      alignment: "center",
-      spacing: { after: 200 },
-    })
-  );
-
-  // Draft notice
-  sections.push(
-    createParagraph("CONFIDENTIAL DRAFT", {
-      bold: true,
-      alignment: "center",
-      highlight: true,
-      spacing: { before: 1000 },
-    })
-  );
-
-  return sections;
-}
-
-/**
- * Create executive summary
- */
-function createExecutiveSummary(content: ReportContent, reportData: { companyName: string; valuationDate: string }): Paragraph[] {
-  const sections: Paragraph[] = [];
+  sections.push(createParagraph(`Company Name: ${content.companyName}`, { bold: true }));
+  sections.push(createParagraph(`Valuation Date: ${dateStr}`));
+  sections.push(createParagraph(`Report Type: ${reportTypeLabel}`));
+  sections.push(createParagraph(`Generated: ${generatedStr}`, { spacing: { after: 200 } }));
 
   sections.push(
     createParagraph(
-      `This report presents our opinion of the fair market value of the common stock of ${reportData.companyName} as of ${reportData.valuationDate}.`
+      "This document contains AI-generated sections for your valuation report. " +
+      "Copy each section into your Word template as needed.",
+      { italic: true, spacing: { before: 200, after: 200 } }
     )
   );
-
-  // Add concluded value if available
-  if (content.conclusion.content && !content.conclusion.content.includes("FAILED")) {
-    sections.push(createParagraph(content.conclusion.content));
-  } else {
-    sections.push(createPlaceholder("Conclusion summary"));
-  }
 
   return sections;
 }
@@ -182,78 +134,60 @@ function createExecutiveSummary(content: ReportContent, reportData: { companyNam
 /**
  * Create company overview section
  */
-function createCompanySection(content: ReportContent): Paragraph[] {
-  const sections: Paragraph[] = [];
+function createCompanySection(content: ReportContent): DocumentChild[] {
+  const sections: DocumentChild[] = [];
 
   if (content.companyOverview.content && !content.companyOverview.content.includes("not generated")) {
-    // Split content into paragraphs
     const paragraphs = content.companyOverview.content.split("\n\n").filter((p) => p.trim());
 
     for (const para of paragraphs) {
       if (content.companyOverview.confidence < 0.6) {
-        sections.push(createFlaggedContent(para, "Low confidence - review required"));
+        sections.push(createFlaggedContent(para, "Low confidence - verify this information"));
       } else {
         sections.push(createParagraph(para));
       }
     }
-
-    // Add warnings if any
-    if (content.companyOverview.warnings && content.companyOverview.warnings.length > 0) {
-      sections.push(
-        createParagraph(`Note: ${content.companyOverview.warnings.join("; ")}`, {
-          italic: true,
-          highlight: true,
-        })
-      );
-    }
   } else {
-    sections.push(createPlaceholder("Company overview content"));
+    sections.push(createPlaceholder("Company overview could not be generated"));
   }
-
-  // Add cap table placeholder
-  sections.push(createHeading("Capitalization", 3));
-  sections.push(createCapTablePlaceholder());
 
   return sections;
 }
 
 /**
- * Create industry section
+ * Create industry outlook section with citations
  */
-function createIndustrySection(content: ReportContent): Paragraph[] {
-  const sections: Paragraph[] = [];
+function createIndustrySection(content: ReportContent): DocumentChild[] {
+  const sections: DocumentChild[] = [];
 
   if (content.industryOutlook.content && !content.industryOutlook.content.includes("not generated")) {
-    // Add footnotes to industry content
     const { content: footnotedContent, footnotes } = addFootnotes(
       content.industryOutlook.content,
       content.industryCitations
     );
 
-    // Split into paragraphs
     const paragraphs = footnotedContent.split("\n\n").filter((p) => p.trim());
 
     for (const para of paragraphs) {
-      // Handle markdown-style headers
       if (para.startsWith("**") && para.endsWith("**")) {
-        sections.push(createHeading(para.replace(/\*\*/g, ""), 3));
+        sections.push(createHeading(para.replace(/\*\*/g, ""), 2));
       } else if (para.startsWith("•") || para.startsWith("-")) {
-        // Bullet points
         sections.push(createParagraph(para, { indent: { left: 720 } }));
       } else {
         sections.push(createParagraph(para));
       }
     }
 
-    // Add footnotes section
+    // Add footnotes at end of section
     if (footnotes.length > 0) {
-      sections.push(createHeading("Sources", 3));
+      sections.push(createParagraph("", { spacing: { before: 300 } }));
+      sections.push(createParagraph("Sources:", { bold: true, spacing: { after: 100 } }));
       for (const footnote of footnotes) {
-        sections.push(createParagraph(footnote, { spacing: { after: 100 } }));
+        sections.push(createParagraph(footnote, { spacing: { after: 50 } }));
       }
     }
   } else {
-    sections.push(createPlaceholder("Industry outlook content"));
+    sections.push(createPlaceholder("Industry outlook could not be generated"));
   }
 
   return sections;
@@ -262,8 +196,8 @@ function createIndustrySection(content: ReportContent): Paragraph[] {
 /**
  * Create economic outlook section
  */
-function createEconomicSection(content: ReportContent): Paragraph[] {
-  const sections: Paragraph[] = [];
+function createEconomicSection(content: ReportContent): DocumentChild[] {
+  const sections: DocumentChild[] = [];
 
   if (content.economicOutlook.content && !content.economicOutlook.content.includes("not loaded")) {
     const paragraphs = content.economicOutlook.content.split("\n\n").filter((p) => p.trim());
@@ -272,63 +206,63 @@ function createEconomicSection(content: ReportContent): Paragraph[] {
       sections.push(createParagraph(para));
     }
   } else {
-    sections.push(createPlaceholder("Economic outlook content - load from stored document"));
+    sections.push(createPlaceholder("Economic outlook not loaded - check quarterly outlook documents"));
   }
 
   return sections;
 }
 
 /**
- * Create valuation analysis section
+ * Create valuation approach section
  */
-function createValuationSection(content: ReportContent): Paragraph[] {
-  const sections: Paragraph[] = [];
+function createApproachSection(narrative: { approachName: string; narrative: string; confidence: string }): DocumentChild[] {
+  const sections: DocumentChild[] = [];
 
-  // Introduction
-  sections.push(
-    createParagraph(
-      "The following valuation approaches were considered and applied in determining the fair market value:"
-    )
-  );
+  const paragraphs = narrative.narrative.split("\n\n").filter((p) => p.trim());
 
-  // Add narrative for each approach
-  for (const narrative of content.approachNarratives) {
-    sections.push(createHeading(narrative.approachName, 2));
-
-    const paragraphs = narrative.narrative.split("\n\n").filter((p) => p.trim());
-
-    for (const para of paragraphs) {
-      if (narrative.confidence === "low") {
-        sections.push(createFlaggedContent(para, "Low confidence"));
-      } else {
-        sections.push(createParagraph(para));
-      }
+  for (const para of paragraphs) {
+    if (narrative.confidence === "low") {
+      sections.push(createFlaggedContent(para, "Low confidence - review carefully"));
+    } else {
+      sections.push(createParagraph(para));
     }
   }
 
-  // If no narratives
-  if (content.approachNarratives.length === 0) {
-    sections.push(createPlaceholder("Valuation approach narratives"));
+  if (paragraphs.length === 0) {
+    sections.push(createPlaceholder(`${narrative.approachName} narrative could not be generated`));
   }
 
   return sections;
 }
 
 /**
- * Create conclusion section
+ * Create conclusion section with weighting table
  */
-function createConclusionSection(content: ReportContent): Paragraph[] {
-  const sections: Paragraph[] = [];
+function createConclusionSection(content: ReportContent): DocumentChild[] {
+  const sections: DocumentChild[] = [];
 
-  // Valuation summary table
-  sections.push(createHeading("Summary of Value Indications", 2));
-
-  // Note: Table would be added here - for now using placeholder
-  sections.push(createPlaceholder("Insert valuation summary table"));
+  // Create weighting table
+  if (content.approachNarratives.length > 0) {
+    sections.push(createParagraph("Valuation Summary:", { bold: true, spacing: { after: 200 } }));
+    
+    // Build table data
+    const tableData = {
+      headers: ["Approach", "Indicated Value", "Weight"],
+      rows: content.approachNarratives.map(n => ({
+        cells: [
+          { content: n.approachName },
+          { content: "[Value from model]", alignment: "right" as const },
+          { content: "[Weight from model]", alignment: "right" as const }
+        ]
+      })),
+      headerStyle: "bold" as const,
+    };
+    
+    sections.push(createTable(tableData));
+    sections.push(createParagraph("", { spacing: { before: 200 } }));
+  }
 
   // Conclusion narrative
-  sections.push(createHeading("Reconciliation and Conclusion", 2));
-
   if (content.conclusion.content && !content.conclusion.content.includes("FAILED")) {
     const paragraphs = content.conclusion.content.split("\n\n").filter((p) => p.trim());
 
@@ -336,32 +270,64 @@ function createConclusionSection(content: ReportContent): Paragraph[] {
       sections.push(createParagraph(para));
     }
   } else {
-    sections.push(createPlaceholder("Conclusion narrative"));
+    sections.push(createPlaceholder("Conclusion narrative could not be generated"));
   }
 
   return sections;
 }
 
 /**
- * Create flags section for items needing review
+ * Create flags and review notes section
  */
-function createFlagsSection(flags: Flag[]): Paragraph[] {
-  const sections: Paragraph[] = [];
+function createFlagsSection(flags: Flag[], content: ReportContent): DocumentChild[] {
+  const sections: DocumentChild[] = [];
 
-  sections.push(
-    createParagraph(
-      "The following items require review or additional input before finalizing this report:",
-      { bold: true }
-    )
-  );
+  // Collect all items needing review
+  const reviewItems: string[] = [];
 
+  // Add explicit flags
   for (const flag of flags) {
     const prefix = flag.type === "error" ? "❌" : flag.type === "missing" ? "⚠️" : "📝";
+    reviewItems.push(`${prefix} ${flag.section}: ${flag.message}`);
+  }
+
+  // Add missing data warnings
+  if (!content.companyName || content.companyName === "Unknown Company") {
+    reviewItems.push("⚠️ Company name not found - verify and update");
+  }
+  
+  if (content.companyOverview.confidence < 0.7) {
+    reviewItems.push("📝 Company Overview: Low confidence in AI research - verify facts");
+  }
+
+  if (content.industryOutlook.confidence < 0.7) {
+    reviewItems.push("📝 Industry Outlook: Review citations and verify current");
+  }
+
+  if (content.economicOutlook.content?.includes("not loaded")) {
+    reviewItems.push("⚠️ Economic Outlook: Quarterly document not found");
+  }
+
+  // Display items
+  if (reviewItems.length > 0) {
     sections.push(
-      createParagraph(`${prefix} ${flag.section}: ${flag.message}`, {
-        indent: { left: 360 },
-        spacing: { after: 100 },
-      })
+      createParagraph(
+        "The following items were flagged for review:",
+        { bold: true, spacing: { after: 200 } }
+      )
+    );
+
+    for (const item of reviewItems) {
+      sections.push(
+        createParagraph(item, {
+          indent: { left: 360 },
+          spacing: { after: 100 },
+        })
+      );
+    }
+  } else {
+    sections.push(
+      createParagraph("No items flagged for review.", { italic: true })
     );
   }
 
@@ -375,37 +341,32 @@ export async function saveReport(
   buffer: Buffer,
   engagement: Engagement
 ): Promise<string> {
-  // Generate filename
-  const companyName = engagement.companyName || "Company";
+  const companyName = (engagement.companyName || "Company").replace(/[^a-zA-Z0-9 ]/g, "");
   const reportType = engagement.reportType === "FOUR09A" ? "409A" : "59-60";
   const dateStr = engagement.valuationDate
     ? new Date(engagement.valuationDate).toISOString().split("T")[0]
     : new Date().toISOString().split("T")[0];
 
-  const baseName = `${companyName} - ${reportType} - ${dateStr} - DRAFT_v1.docx`;
+  const baseName = `${companyName} - ${reportType} - ${dateStr} - SECTIONS.docx`;
   const fileName = generateFileName(baseName, "report");
 
-  // Save to reports directory
   const filePath = await saveFile(buffer, STORAGE_DIRS.reports, fileName);
 
   return filePath;
 }
 
 /**
- * Generate complete report document
+ * Generate complete sections document
  */
 export async function generateReport(
-  template: TemplateContent | null,
-  content: ReportContent,
-  engagement: Engagement
+  content: ReportContent
 ): Promise<GeneratedDocument> {
-  const buffer = await assembleReport(template, content, engagement);
+  const buffer = await assembleReport(content);
 
-  // Generate filename
-  const companyName = content.companyName || "Company";
+  const companyName = (content.companyName || "Company").replace(/[^a-zA-Z0-9 ]/g, "");
   const reportType = content.reportType === "FOUR09A" ? "409A" : "59-60";
   const dateStr = content.valuationDate.toISOString().split("T")[0];
-  const filename = `${companyName} - ${reportType} - ${dateStr} - DRAFT.docx`;
+  const filename = `${companyName} - ${reportType} - ${dateStr} - SECTIONS.docx`;
 
   return {
     buffer,
@@ -414,4 +375,3 @@ export async function generateReport(
     size: buffer.length,
   };
 }
-

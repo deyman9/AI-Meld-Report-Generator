@@ -9,7 +9,7 @@ interface StepReviewProps {
   reportType: ReportType;
   parsedData: ParsedModelResponse;
   modelFileName: string;
-  voiceTranscript: string;
+  qualitativeContext: string;
   onGenerate: () => void;
   isGenerating: boolean;
 }
@@ -50,11 +50,29 @@ function WarningIcon() {
   );
 }
 
+function InfoIcon() {
+  return (
+    <svg
+      className="w-5 h-5 text-gray-400"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+      />
+    </svg>
+  );
+}
+
 export default function StepReview({
   reportType,
   parsedData,
   modelFileName,
-  voiceTranscript,
+  qualitativeContext,
   onGenerate,
   isGenerating,
 }: StepReviewProps) {
@@ -73,8 +91,8 @@ export default function StepReview({
 
   const reportTypeLabel = reportType === "FOUR09A" ? "409A Valuation" : "Gift & Estate (59-60)";
 
-  const wordCount = voiceTranscript.trim()
-    ? voiceTranscript.trim().split(/\s+/).length
+  const wordCount = qualitativeContext.trim()
+    ? qualitativeContext.trim().split(/\s+/).length
     : 0;
 
   const hasWarnings =
@@ -87,7 +105,7 @@ export default function StepReview({
       <div className="text-center mb-8">
         <h2 className="text-2xl font-bold text-gray-900">Review & Generate</h2>
         <p className="mt-2 text-gray-500">
-          Review your selections before generating the report
+          Review your selections before generating report sections
         </p>
       </div>
 
@@ -153,19 +171,19 @@ export default function StepReview({
           </div>
         </div>
 
-        {/* Voice Input */}
+        {/* Context */}
         <div className="p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {wordCount > 0 ? <CheckIcon /> : <WarningIcon />}
+            {wordCount > 0 ? <CheckIcon /> : <InfoIcon />}
             <div>
               <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Voice Input
+                Qualitative Context
               </p>
               <p className="text-gray-900 font-medium">
                 {wordCount > 0 ? (
                   `${wordCount} words`
                 ) : (
-                  <span className="text-gray-400 italic">None provided</span>
+                  <span className="text-gray-400 italic">None provided (optional)</span>
                 )}
               </p>
             </div>
@@ -173,10 +191,10 @@ export default function StepReview({
           {wordCount > 0 && (
             <details className="text-sm">
               <summary className="cursor-pointer text-slate-600 hover:text-slate-800">
-                View transcript
+                View context
               </summary>
               <p className="mt-2 p-3 bg-white rounded border border-gray-200 text-gray-600 text-sm max-h-32 overflow-y-auto">
-                {voiceTranscript}
+                {qualitativeContext}
               </p>
             </details>
           )}
@@ -204,12 +222,25 @@ export default function StepReview({
                 ))}
               </ul>
               <p className="mt-2 text-sm text-amber-600">
-                The generated report will highlight these areas for manual review.
+                The generated document will flag these areas for manual review.
               </p>
             </div>
           </div>
         </div>
       )}
+
+      {/* What will be generated */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <p className="font-medium text-blue-800 mb-2">Sections to be generated:</p>
+        <ul className="text-sm text-blue-700 space-y-1">
+          <li>• Company Overview</li>
+          <li>• Industry Outlook (with citations)</li>
+          <li>• Economic Outlook</li>
+          <li>• Valuation Analysis for each approach used</li>
+          <li>• Conclusion & Weighting Rationale</li>
+          <li>• Flags & Review Notes</li>
+        </ul>
+      </div>
 
       {/* Generate Button */}
       <div className="text-center space-y-4">
@@ -220,14 +251,13 @@ export default function StepReview({
           loading={isGenerating}
           className="min-w-[200px]"
         >
-          {isGenerating ? "Generating..." : "Generate Report"}
+          {isGenerating ? "Generating..." : "Generate Sections"}
         </Button>
 
         <p className="text-sm text-gray-500">
-          Generation may take 5-10 minutes. You&apos;ll receive an email when ready.
+          Generation may take 2-5 minutes. You&apos;ll receive an email when ready.
         </p>
       </div>
     </div>
   );
 }
-

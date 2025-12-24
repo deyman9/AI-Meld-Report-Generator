@@ -1,6 +1,6 @@
 /**
  * Complete Generation Pipeline
- * Orchestrates the entire report generation process
+ * Orchestrates the entire report section generation process
  */
 
 import prisma from "@/lib/db/prisma";
@@ -8,7 +8,6 @@ import { parseValuationModel } from "@/lib/excel/parseValuationModel";
 import { generateReportContent, validateContent } from "./orchestrator";
 import { updateEngagementStatus, markComplete, markError } from "./status";
 import { assembleReport, saveReport } from "@/lib/document/assembler";
-import { loadTemplate } from "@/lib/document/template";
 import { notifyReportComplete, notifyReportFailed } from "@/lib/email/notify";
 import type { GenerationResult } from "@/types/generation";
 import type { JobStage } from "@/types/jobs";
@@ -17,13 +16,13 @@ type ProgressCallback = (stage: JobStage, progress: number, message: string) => 
 
 /**
  * Main report generation function
- * Runs the complete pipeline from engagement to generated report
+ * Runs the complete pipeline from engagement to generated sections document
  */
 export async function generateReport(engagementId: string): Promise<GenerationResult> {
   const startTime = Date.now();
   const warnings: string[] = [];
 
-  console.log(`Starting report generation for engagement ${engagementId}`);
+  console.log(`Starting section generation for engagement ${engagementId}`);
 
   try {
     // 1. Load engagement from database
@@ -43,7 +42,6 @@ export async function generateReport(engagementId: string): Promise<GenerationRe
     // Verify status
     if (engagement.status !== "PROCESSING") {
       console.log(`Engagement ${engagementId} is not in PROCESSING status (current: ${engagement.status})`);
-      // Update to PROCESSING if it's in DRAFT
       if (engagement.status === "DRAFT") {
         await updateEngagementStatus(engagementId, "PROCESSING");
       } else {
@@ -87,31 +85,7 @@ export async function generateReport(engagementId: string): Promise<GenerationRe
       };
     }
 
-    // 3. Load template (optional - we can generate without it)
-    let template = null;
-    try {
-      const templateRecord = await prisma.template.findFirst({
-        where: { type: engagement.reportType },
-        orderBy: { updatedAt: "desc" },
-      });
-
-      if (templateRecord) {
-        template = await loadTemplate(
-          templateRecord.filePath,
-          templateRecord.id,
-          templateRecord.name,
-          templateRecord.type
-        );
-        console.log(`Loaded template: ${templateRecord.name}`);
-      } else {
-        warnings.push("No template found - generating with default structure");
-      }
-    } catch (error) {
-      console.error("Failed to load template:", error);
-      warnings.push("Template loading failed - using default structure");
-    }
-
-    // 4. Generate all content
+    // 3. Generate all content
     console.log("Generating report content...");
     let content;
     try {
@@ -128,7 +102,7 @@ export async function generateReport(engagementId: string): Promise<GenerationRe
       };
     }
 
-    // 5. Validate content
+    // 4. Validate content
     const validation = validateContent(content);
     warnings.push(...validation.warnings);
 
@@ -138,11 +112,11 @@ export async function generateReport(engagementId: string): Promise<GenerationRe
       // Continue anyway - we want partial reports
     }
 
-    // 6. Assemble document
-    console.log("Assembling document...");
+    // 5. Assemble document
+    console.log("Assembling sections document...");
     let documentBuffer;
     try {
-      documentBuffer = await assembleReport(template, content, engagement);
+      documentBuffer = await assembleReport(content);
     } catch (error) {
       const errorMsg = `Document assembly failed: ${error instanceof Error ? error.message : "Unknown error"}`;
       await markError(engagementId, errorMsg);
@@ -154,13 +128,13 @@ export async function generateReport(engagementId: string): Promise<GenerationRe
       };
     }
 
-    // 7. Save report to storage
-    console.log("Saving report...");
+    // 6. Save report to storage
+    console.log("Saving document...");
     let reportFilePath;
     try {
       reportFilePath = await saveReport(documentBuffer, engagement);
     } catch (error) {
-      const errorMsg = `Failed to save report: ${error instanceof Error ? error.message : "Unknown error"}`;
+      const errorMsg = `Failed to save document: ${error instanceof Error ? error.message : "Unknown error"}`;
       await markError(engagementId, errorMsg);
       return {
         success: false,
@@ -170,11 +144,10 @@ export async function generateReport(engagementId: string): Promise<GenerationRe
       };
     }
 
-    // 8. Create database record
+    // 7. Create database record
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 30); // 30 days expiration
 
-    // Get current version
     const existingReports = await prisma.generatedReport.count({
       where: { engagementId },
     });
@@ -188,11 +161,11 @@ export async function generateReport(engagementId: string): Promise<GenerationRe
       },
     });
 
-    // 9. Update engagement status
+    // 8. Update engagement status
     await markComplete(engagementId);
 
     const duration = Date.now() - startTime;
-    console.log(`Report generation completed in ${duration}ms`);
+    console.log(`Section generation completed in ${duration}ms`);
 
     // Send success notification
     await notifyReportComplete(engagementId, warnings);
@@ -205,9 +178,8 @@ export async function generateReport(engagementId: string): Promise<GenerationRe
     };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : "Unknown error";
-    console.error(`Report generation failed: ${errorMsg}`, error);
+    console.error(`Section generation failed: ${errorMsg}`, error);
 
-    // Try to update status to error and send notification
     try {
       await markError(engagementId, errorMsg);
       await notifyReportFailed(engagementId, errorMsg);
@@ -228,10 +200,7 @@ export async function generateReport(engagementId: string): Promise<GenerationRe
  * Retry failed generation
  */
 export async function retryGeneration(engagementId: string): Promise<GenerationResult> {
-  // Reset to PROCESSING status
   await updateEngagementStatus(engagementId, "PROCESSING");
-
-  // Run generation
   return generateReport(engagementId);
 }
 
@@ -246,7 +215,7 @@ export async function generateReportWithCallbacks(
   const startTime = Date.now();
   const warnings: string[] = [];
 
-  console.log(`Starting report generation with callbacks for engagement ${engagementId}`);
+  console.log(`Starting section generation with callbacks for engagement ${engagementId}`);
 
   try {
     // 1. Load engagement from database
@@ -261,7 +230,6 @@ export async function generateReportWithCallbacks(
       return { success: false, error: "Engagement not found", warnings: [] };
     }
 
-    // Verify status
     if (engagement.status !== "PROCESSING") {
       if (engagement.status === "DRAFT") {
         await updateEngagementStatus(engagementId, "PROCESSING");
@@ -297,40 +265,15 @@ export async function generateReportWithCallbacks(
       return { success: false, error: errorMsg, warnings: [] };
     }
 
-    // 3. Load template
-    onProgress('loading_template', 15, 'Loading document template...');
-    
-    let template = null;
-    try {
-      const templateRecord = await prisma.template.findFirst({
-        where: { type: engagement.reportType },
-        orderBy: { updatedAt: "desc" },
-      });
+    // 3. Generate company research
+    onProgress('researching_company', 20, 'Researching company information...');
 
-      if (templateRecord) {
-        template = await loadTemplate(
-          templateRecord.filePath,
-          templateRecord.id,
-          templateRecord.name,
-          templateRecord.type
-        );
-      } else {
-        warnings.push("No template found - generating with default structure");
-      }
-    } catch {
-      warnings.push("Template loading failed - using default structure");
-    }
+    // 4. Generate industry research  
+    onProgress('researching_industry', 35, 'Analyzing industry outlook...');
 
-    // 4. Generate company research
-    onProgress('researching_company', 25, 'Researching company information...');
+    // 5. Generate valuation narratives
+    onProgress('generating_narratives', 50, 'Generating valuation narratives...');
 
-    // 5. Generate industry research  
-    onProgress('researching_industry', 40, 'Analyzing industry outlook...');
-
-    // 6. Generate valuation narratives
-    onProgress('generating_narratives', 55, 'Generating valuation narratives...');
-
-    // All content generation happens here
     let content;
     try {
       content = await generateReportContent(engagement, parsedModel);
@@ -342,8 +285,8 @@ export async function generateReportWithCallbacks(
       return { success: false, error: errorMsg, warnings };
     }
 
-    // 7. Validate content
-    onProgress('generating_narratives', 70, 'Validating generated content...');
+    // 6. Validate content
+    onProgress('generating_narratives', 65, 'Validating generated content...');
     
     const validation = validateContent(content);
     warnings.push(...validation.warnings);
@@ -351,12 +294,12 @@ export async function generateReportWithCallbacks(
       warnings.push(...validation.errors);
     }
 
-    // 8. Assemble document
-    onProgress('assembling_document', 80, 'Assembling document...');
+    // 7. Assemble document
+    onProgress('assembling_document', 75, 'Assembling sections document...');
     
     let documentBuffer;
     try {
-      documentBuffer = await assembleReport(template, content, engagement);
+      documentBuffer = await assembleReport(content);
     } catch (error) {
       const errorMsg = `Document assembly failed: ${error instanceof Error ? error.message : "Unknown error"}`;
       await markError(engagementId, errorMsg);
@@ -364,21 +307,21 @@ export async function generateReportWithCallbacks(
       return { success: false, error: errorMsg, warnings };
     }
 
-    // 9. Save report
-    onProgress('saving_report', 90, 'Saving report...');
+    // 8. Save report
+    onProgress('saving_report', 85, 'Saving document...');
     
     let reportFilePath;
     try {
       reportFilePath = await saveReport(documentBuffer, engagement);
     } catch (error) {
-      const errorMsg = `Failed to save report: ${error instanceof Error ? error.message : "Unknown error"}`;
+      const errorMsg = `Failed to save document: ${error instanceof Error ? error.message : "Unknown error"}`;
       await markError(engagementId, errorMsg);
       await notifyReportFailed(engagementId, errorMsg);
       return { success: false, error: errorMsg, warnings };
     }
 
-    // 10. Create database record
-    onProgress('saving_report', 95, 'Finalizing...');
+    // 9. Create database record
+    onProgress('saving_report', 92, 'Finalizing...');
     
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 30);
@@ -396,21 +339,20 @@ export async function generateReportWithCallbacks(
       },
     });
 
-    // 11. Update engagement status
+    // 10. Update engagement status
     await markComplete(engagementId);
     
-    onProgress('complete', 100, 'Report generation completed!');
+    onProgress('complete', 100, 'Sections generated successfully!');
 
     const duration = Date.now() - startTime;
-    console.log(`Report generation completed in ${duration}ms`);
+    console.log(`Section generation completed in ${duration}ms`);
 
-    // Send success notification
     await notifyReportComplete(engagementId, warnings);
 
     return { success: true, warnings };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : "Unknown error";
-    console.error(`Report generation failed: ${errorMsg}`, error);
+    console.error(`Section generation failed: ${errorMsg}`, error);
 
     try {
       await markError(engagementId, errorMsg);
@@ -422,4 +364,3 @@ export async function generateReportWithCallbacks(
     return { success: false, error: errorMsg, warnings };
   }
 }
-

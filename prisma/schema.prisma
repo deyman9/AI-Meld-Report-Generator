@@ -75,15 +75,6 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-model Template {
-  id         String     @id @default(cuid())
-  name       String
-  type       ReportType
-  filePath   String
-  uploadedAt DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
-}
-
 model StyleExample {
   id         String     @id @default(cuid())
   name       String
@@ -110,7 +101,7 @@ model Engagement {
   reportType      ReportType
   status          EngagementStatus @default(DRAFT)
   modelFilePath   String?
-  voiceTranscript String?
+  qualitativeContext String?
   errorMessage    String?
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt

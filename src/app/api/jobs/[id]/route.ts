@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth/options";
+import { getServerSession } from "@/lib/auth/session";
 import { getJobStatus } from "@/lib/jobs";
 
 interface RouteParams {
@@ -10,7 +9,7 @@ interface RouteParams {
 // GET /api/jobs/[id] - Get job status
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession();
 
     if (!session?.user?.id) {
       return NextResponse.json(

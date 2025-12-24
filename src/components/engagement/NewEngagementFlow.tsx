@@ -6,14 +6,14 @@ import Card from "@/components/ui/Card";
 import StepIndicator from "./StepIndicator";
 import StepReportType from "./StepReportType";
 import StepUploadModel from "./StepUploadModel";
-import StepVoiceInput from "./StepVoiceInput";
+import StepQualitativeContext from "./StepQualitativeContext";
 import StepReview from "./StepReview";
 import GenerationStatus from "./GenerationStatus";
 import type { ParsedModelResponse } from "@/types/excel";
 
 type ReportType = "FOUR09A" | "FIFTY_NINE_SIXTY";
 
-const STEPS = ["Report Type", "Upload Model", "Voice Input", "Review"];
+const STEPS = ["Report Type", "Upload Model", "Context", "Review"];
 
 export default function NewEngagementFlow() {
   const [currentStep, setCurrentStep] = useState(1);
@@ -21,7 +21,7 @@ export default function NewEngagementFlow() {
   const [modelFilePath, setModelFilePath] = useState<string | null>(null);
   const [modelFileName, setModelFileName] = useState<string | null>(null);
   const [parsedData, setParsedData] = useState<ParsedModelResponse | null>(null);
-  const [voiceTranscript, setVoiceTranscript] = useState("");
+  const [qualitativeContext, setQualitativeContext] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -72,7 +72,7 @@ export default function NewEngagementFlow() {
         body: JSON.stringify({
           reportType,
           modelFilePath,
-          voiceTranscript: voiceTranscript || null,
+          qualitativeContext: qualitativeContext || null,
           companyName: parsedData.companyName,
           valuationDate: parsedData.valuationDate,
         }),
@@ -116,7 +116,7 @@ export default function NewEngagementFlow() {
       case 2:
         return parsedData !== null;
       case 3:
-        return true; // Voice input is optional
+        return true; // Context is optional
       case 4:
         return !isProcessing;
       default:
@@ -138,9 +138,9 @@ export default function NewEngagementFlow() {
         );
       case 3:
         return (
-          <StepVoiceInput
-            transcript={voiceTranscript}
-            onTranscriptChange={setVoiceTranscript}
+          <StepQualitativeContext
+            value={qualitativeContext}
+            onChange={setQualitativeContext}
           />
         );
       case 4:
@@ -149,7 +149,7 @@ export default function NewEngagementFlow() {
             reportType={reportType!}
             parsedData={parsedData!}
             modelFileName={modelFileName!}
-            voiceTranscript={voiceTranscript}
+            qualitativeContext={qualitativeContext}
             onGenerate={handleGenerate}
             isGenerating={isProcessing}
           />
@@ -165,9 +165,9 @@ export default function NewEngagementFlow() {
       <div className="max-w-4xl mx-auto space-y-8">
         {/* Header */}
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Generating Report</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Generating Sections</h1>
           <p className="mt-1 text-gray-500">
-            Your AI-powered valuation report is being generated
+            Your AI-powered report sections are being generated
           </p>
         </div>
 
@@ -184,9 +184,9 @@ export default function NewEngagementFlow() {
     <div className="max-w-4xl mx-auto space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">New Report</h1>
+        <h1 className="text-2xl font-bold text-gray-900">New Report Sections</h1>
         <p className="mt-1 text-gray-500">
-          Create a new AI-powered valuation report
+          Generate AI-powered sections for your valuation report
         </p>
       </div>
 
@@ -274,4 +274,3 @@ export default function NewEngagementFlow() {
     </div>
   );
 }
-

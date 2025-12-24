@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from '@/lib/auth/session';
 import { saveFile, generateFileName, getDirectoryForType } from '@/lib/storage';
 import { 
-  validateFileType, 
   validateFileSize, 
   validateFileExtension,
   MAX_FILE_SIZE,

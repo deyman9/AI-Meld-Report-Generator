@@ -56,25 +56,14 @@ export async function generateReportContent(
 
   // 1. Load required resources
   console.log("Loading resources...");
-  const [template, economicOutlookDoc] = await Promise.all([
-    loadTemplate(engagement.reportType),
-    loadEconomicOutlook(valuationDate),
-  ]);
-
-  if (!template) {
-    flags.push({
-      section: "template",
-      message: "No template found for this report type",
-      type: "missing",
-    });
-  }
+  const economicOutlookDoc = await loadEconomicOutlook(valuationDate);
 
   // 2. Generate company research
   let companyResearch: CompanyResearch | null = null;
   if (opts.includeCompanyResearch) {
     try {
       console.log(`Researching company: ${companyName}`);
-      companyResearch = await researchCompany(companyName, engagement.voiceTranscript || undefined);
+      companyResearch = await researchCompany(companyName, engagement.qualitativeContext || undefined);
 
       companyOverview = {
         content: companyResearch.companyDescription,
@@ -157,7 +146,7 @@ export async function generateReportContent(
   console.log("Generating valuation narratives...");
   const narrativeSet = await generateAllNarratives(
     parsedModel,
-    engagement.voiceTranscript || undefined,
+    engagement.qualitativeContext || undefined,
     companyResearch
       ? { description: companyResearch.companyDescription, industry: companyResearch.industry }
       : undefined
@@ -269,23 +258,6 @@ function createEmptySection(message: string): SectionContent {
     source: "manual",
     confidence: 0,
   };
-}
-
-/**
- * Helper: Load template for report type
- */
-async function loadTemplate(reportType: "FOUR09A" | "FIFTY_NINE_SIXTY"): Promise<{ id: string; filePath: string } | null> {
-  try {
-    const template = await prisma.template.findFirst({
-      where: { type: reportType },
-      orderBy: { updatedAt: "desc" },
-      select: { id: true, filePath: true },
-    });
-    return template;
-  } catch (error) {
-    console.error("Failed to load template:", error);
-    return null;
-  }
 }
 
 /**

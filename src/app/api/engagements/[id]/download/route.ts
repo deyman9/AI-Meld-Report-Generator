@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth/options";
+import { getServerSession } from "@/lib/auth/session";
 import prisma from "@/lib/db/prisma";
 import { readFile } from "fs/promises";
 import { existsSync } from "fs";
@@ -12,7 +11,7 @@ interface RouteParams {
 // GET /api/engagements/[id]/download - Download generated report
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession();
 
     if (!session?.user?.id) {
       return NextResponse.json(

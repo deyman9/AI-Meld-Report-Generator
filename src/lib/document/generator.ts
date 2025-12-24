@@ -46,7 +46,7 @@ import type {
  */
 export function createDocument(
   options: DocumentOptions,
-  sections: Paragraph[]
+  sections: (Paragraph | Table)[]
 ): Document {
   const reportStyle = REPORT_TYPE_STYLES[options.reportType];
 

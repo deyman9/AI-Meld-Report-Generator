@@ -1,5 +1,4 @@
 import Card from "@/components/ui/Card";
-import TemplateManager from "@/components/settings/TemplateManager";
 import EconomicOutlookManager from "@/components/settings/EconomicOutlookManager";
 import StyleExampleManager from "@/components/settings/StyleExampleManager";
 
@@ -9,14 +8,9 @@ export default function SettingsPage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
         <p className="mt-1 text-gray-500">
-          Manage templates, economic outlooks, and style examples.
+          Manage economic outlooks and style examples for AI-generated content.
         </p>
       </div>
-
-      {/* Templates Section */}
-      <Card padding="lg">
-        <TemplateManager />
-      </Card>
 
       {/* Economic Outlooks Section */}
       <Card padding="lg">
@@ -30,4 +24,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-

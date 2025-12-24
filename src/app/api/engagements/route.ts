@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth/options";
+import { getServerSession } from "@/lib/auth/session";
 import prisma from "@/lib/db/prisma";
 
 // GET /api/engagements - List user's engagements
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession();
 
     if (!session?.user?.id) {
       return NextResponse.json(
@@ -56,7 +55,7 @@ export async function GET() {
 // POST /api/engagements - Create new engagement
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession();
 
     if (!session?.user?.id) {
       return NextResponse.json(
@@ -66,7 +65,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { reportType, modelFilePath, voiceTranscript, companyName, valuationDate } = body;
+    const { reportType, modelFilePath, qualitativeContext, companyName, valuationDate } = body;
 
     // Validate required fields
     if (!reportType || !modelFilePath) {
@@ -103,7 +102,7 @@ export async function POST(request: NextRequest) {
         userId: session.user.id,
         reportType,
         modelFilePath,
-        voiceTranscript: voiceTranscript || null,
+        qualitativeContext: qualitativeContext || null,
         companyName: companyName || null,
         valuationDate: parsedValuationDate,
         status: "DRAFT",

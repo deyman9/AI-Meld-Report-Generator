@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth/options";
+import { getServerSession } from "@/lib/auth/session";
 import { sendEmail, verifyEmailConfig } from "@/lib/email";
 import { buildReportReadyEmail } from "@/lib/email/templates/reportReady";
 
 // GET /api/test-email - Verify email configuration
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession();
 
     if (!session?.user?.id) {
       return NextResponse.json(
@@ -41,7 +40,7 @@ export async function GET() {
 // POST /api/test-email - Send a test email
 export async function POST() {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession();
 
     if (!session?.user?.id || !session.user.email) {
       return NextResponse.json(

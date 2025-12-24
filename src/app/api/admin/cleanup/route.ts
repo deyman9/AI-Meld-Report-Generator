@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth/options";
+import { getServerSession } from "@/lib/auth/session";
 import { cleanupExpiredFiles } from "@/lib/storage/cleanup";
 
 // POST /api/admin/cleanup - Run cleanup job
 export async function POST() {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession();
 
     if (!session?.user?.id) {
       return NextResponse.json(
@@ -40,7 +39,7 @@ export async function POST() {
 // GET /api/admin/cleanup - Get cleanup status
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession();
 
     if (!session?.user?.id) {
       return NextResponse.json(
