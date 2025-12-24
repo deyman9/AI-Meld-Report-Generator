@@ -109,7 +109,7 @@ export function validateModelFilePath(filePath: string): { valid: boolean; error
   }
 
   const extension = filePath.toLowerCase().split('.').pop();
-  if (!extension || !['xlsx', 'xls'].includes(extension)) {
+  if (!extension || !['xlsx', 'xls', 'xlsm'].includes(extension)) {
     return { valid: false, error: 'File must be an Excel file (.xlsx, .xls, or .xlsm)' };
   }
 
