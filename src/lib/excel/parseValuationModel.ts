@@ -1,4 +1,4 @@
-import type { ParsedModel } from '@/types/excel';
+import type { ParsedModel, DetailedModelData } from '@/types/excel';
 import { 
   loadWorkbook, 
   extractCompanyInfo, 
@@ -6,6 +6,7 @@ import {
   extractSummaryData,
   extractDLOM 
 } from './parser';
+import { extractDetailedData } from './detailedExtractor';
 
 /**
  * Main function to parse a valuation model Excel file
@@ -20,6 +21,7 @@ export async function parseValuationModel(filePath: string): Promise<ParsedModel
   let exhibits: ParsedModel['exhibits'] = [];
   let summary: ParsedModel['summary'] = null;
   let dlom: number | null = null;
+  let detailedData: DetailedModelData | undefined = undefined;
 
   try {
     // Load the workbook
@@ -85,6 +87,33 @@ export async function parseValuationModel(filePath: string): Promise<ParsedModel
       warnings.push(`Failed to extract DLOM: ${error}`);
     }
 
+    // Extract detailed data for AI narrative generation
+    try {
+      console.log('Extracting detailed model data for AI narratives...');
+      detailedData = extractDetailedData(workbook);
+      
+      // Add missing data items to warnings
+      if (detailedData.missingData.length > 0) {
+        console.log(`Missing data for AI narratives: ${detailedData.missingData.join(', ')}`);
+        detailedData.missingData.forEach(item => {
+          warnings.push(`[AI Data] ${item}`);
+        });
+      }
+      
+      // Log extraction summary
+      console.log('Detailed extraction summary:', {
+        hasFinancials: !!detailedData.companyFinancials,
+        gpcCount: detailedData.guidelinePublicCompanies.length,
+        transactionCount: detailedData.guidelineTransactions.length,
+        hasIncomeData: !!detailedData.incomeApproachData,
+        hasBacksolveData: !!detailedData.backsolveData,
+        hasWeightingData: !!detailedData.weightingData,
+      });
+    } catch (error) {
+      console.error('Failed to extract detailed data:', error);
+      warnings.push(`Failed to extract detailed data for AI: ${error}`);
+    }
+
   } catch (error) {
     errors.push(`Failed to load workbook: ${error}`);
   }
@@ -97,6 +126,7 @@ export async function parseValuationModel(filePath: string): Promise<ParsedModel
     dlom,
     errors,
     warnings,
+    detailedData,
   };
 }
 

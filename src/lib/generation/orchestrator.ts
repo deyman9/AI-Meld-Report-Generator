@@ -142,14 +142,15 @@ export async function generateReportContent(
     });
   }
 
-  // 5. Generate valuation narratives
-  console.log("Generating valuation narratives...");
+  // 5. Generate valuation narratives with detailed data
+  console.log("Generating valuation narratives with detailed model data...");
   const narrativeSet = await generateAllNarratives(
     parsedModel,
     engagement.qualitativeContext || undefined,
     companyResearch
       ? { description: companyResearch.companyDescription, industry: companyResearch.industry }
-      : undefined
+      : undefined,
+    engagement.reportType
   );
 
   // Convert approach narratives to section content
@@ -184,6 +185,45 @@ export async function generateReportContent(
   const duration = Date.now() - startTime;
   console.log(`Report content generation completed in ${duration}ms`);
 
+  // Transform detailed data for document generation
+  const detailedData = parsedModel.detailedData ? {
+    guidelineCompanies: parsedModel.detailedData.guidelinePublicCompanies.map(c => ({
+      name: c.name,
+      ticker: c.ticker || undefined,
+      revenueMultiple: c.revenueMultiple || undefined,
+      ebitdaMultiple: c.ebitdaMultiple || undefined,
+    })),
+    guidelineTransactions: parsedModel.detailedData.guidelineTransactions.map(t => ({
+      targetName: t.targetName,
+      revenueMultiple: t.revenueMultiple || undefined,
+      date: t.transactionDate?.toISOString() || undefined,
+    })),
+    incomeApproach: parsedModel.detailedData.incomeApproachData ? {
+      discountRate: parsedModel.detailedData.incomeApproachData.discountRate || undefined,
+      terminalGrowthRate: parsedModel.detailedData.incomeApproachData.terminalGrowthRate || undefined,
+      indicatedValue: parsedModel.detailedData.incomeApproachData.indicatedValue || undefined,
+    } : undefined,
+    backsolve: parsedModel.detailedData.backsolveData ? {
+      volatility: parsedModel.detailedData.backsolveData.volatility || undefined,
+      timeToLiquidity: parsedModel.detailedData.backsolveData.timeToLiquidity || undefined,
+      indicatedValue: parsedModel.detailedData.backsolveData.indicatedCommonValue || undefined,
+    } : undefined,
+    weighting: parsedModel.detailedData.weightingData ? {
+      approaches: parsedModel.detailedData.weightingData.approaches.map(a => ({
+        name: a.name,
+        indicatedValue: a.indicatedValue,
+        weight: a.weight,
+      })),
+      concludedValue: parsedModel.detailedData.weightingData.concludedEnterpriseValue || undefined,
+      dlom: parsedModel.detailedData.weightingData.dlomPercentage || undefined,
+      valueAfterDlom: parsedModel.detailedData.weightingData.valueAfterDlom || undefined,
+    } : undefined,
+    companyFinancials: parsedModel.detailedData.companyFinancials ? {
+      revenue: parsedModel.detailedData.companyFinancials.ltmRevenue || undefined,
+      ebitda: parsedModel.detailedData.companyFinancials.ltmEbitda || undefined,
+    } : undefined,
+  } : undefined;
+
   return {
     companyName,
     valuationDate,
@@ -195,6 +235,9 @@ export async function generateReportContent(
     conclusion,
     approachNarratives: narrativeSet.approachNarratives,
     industryCitations,
+    detailedData,
+    dlom: parsedModel.dlom,
+    concludedValue: parsedModel.summary?.concludedValue || null,
     flags,
     warnings,
     generatedAt: new Date(),

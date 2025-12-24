@@ -76,6 +76,20 @@ src/
 
 ## Recent Changes
 
+### Company-Specific Narratives (Dec 2024)
+
+- **Enhanced Excel parsing** - Now extracts granular data:
+  - Subject company financials (revenue, EBITDA, etc.)
+  - Guideline public company names, tickers, and multiples
+  - Guideline transaction targets and multiples
+  - DCF assumptions (discount rate, terminal growth)
+  - Backsolve/OPM inputs (volatility, time to liquidity)
+  - Weighting data with specific values
+- **Data-driven AI prompts** - AI now references actual extracted data
+- **Summary blocks** - Each approach section includes key metrics
+- **Conditional generation** - Only generates sections with available data
+- **Missing data flags** - Clearly identifies what couldn't be extracted
+
 ### Section Generator Refactor (Dec 2024)
 
 - Removed template upload/management

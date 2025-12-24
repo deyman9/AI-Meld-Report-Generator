@@ -54,7 +54,9 @@ export interface NarrativeContext {
   companyName: string;
   valuationDate: string;
   reportType: "FOUR09A" | "FIFTY_NINE_SIXTY";
+  /** @deprecated Use qualitativeContext instead */
   voiceTranscript?: string;
+  qualitativeContext?: string;
   companyDescription?: string;
   industry?: string;
 }

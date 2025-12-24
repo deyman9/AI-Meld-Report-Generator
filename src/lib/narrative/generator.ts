@@ -1,6 +1,8 @@
 /**
  * Valuation Narrative Generator
  * Generates narrative sections for valuation reports using AI
+ * 
+ * Enhanced to use detailed data extraction for company-specific narratives
  */
 
 import { generateText } from "@/lib/ai";
@@ -13,14 +15,16 @@ import {
   buildOPMPrompt,
   buildConclusionPrompt,
   buildGenericApproachPrompt,
+  canGenerateApproachSection,
+  getDataAvailabilitySummary,
+  type ExtendedNarrativeContext,
 } from "@/lib/ai/prompts/valuationNarrative";
-import type { ApproachData, ParsedModel } from "@/types/excel";
+import type { ApproachData, ParsedModel, DetailedModelData } from "@/types/excel";
 import type {
   NarrativeSet,
   ApproachNarrative,
   ApproachType,
   WeightData,
-  NarrativeContext,
   WeightingAnalysis,
 } from "@/types/narrative";
 
@@ -33,10 +37,10 @@ export function identifyApproachType(approachName: string): ApproachType {
   if (name.includes("guideline") && name.includes("public")) {
     return "guideline_public_company";
   }
-  if (name.includes("transaction") || name.includes("m&a") || name.includes("merger")) {
+  if (name.includes("transaction") || name.includes("m&a") || name.includes("merger") || name.includes("gtm")) {
     return "guideline_transaction";
   }
-  if (name.includes("dcf") || name.includes("discounted cash")) {
+  if (name.includes("dcf") || name.includes("discounted cash") || name.includes("income")) {
     return "income_dcf";
   }
   if (name.includes("ccf") || name.includes("capitalized cash")) {
@@ -51,18 +55,56 @@ export function identifyApproachType(approachName: string): ApproachType {
   if (name.includes("asset") || name.includes("nav") || name.includes("book")) {
     return "asset";
   }
+  if (name.includes("market")) {
+    return "guideline_public_company"; // Default market to GPC
+  }
 
   return "other";
 }
 
 /**
+ * Map approach type to detailed data check type
+ */
+function getApproachCheckType(approachType: ApproachType): 'gpc' | 'gtm' | 'income' | 'backsolve' | null {
+  switch (approachType) {
+    case "guideline_public_company":
+      return 'gpc';
+    case "guideline_transaction":
+      return 'gtm';
+    case "income_dcf":
+    case "income_ccf":
+      return 'income';
+    case "backsolve":
+    case "opm":
+      return 'backsolve';
+    default:
+      return null;
+  }
+}
+
+/**
  * Generate narrative for a specific valuation approach
+ * Now uses detailed data for company-specific narratives
  */
 export async function generateApproachNarrative(
   approach: ApproachData,
-  context?: NarrativeContext
+  context?: ExtendedNarrativeContext
 ): Promise<ApproachNarrative> {
   const approachType = identifyApproachType(approach.name);
+  const checkType = getApproachCheckType(approachType);
+  
+  // Check if we have sufficient data
+  let confidence: "high" | "medium" | "low" = "medium";
+  if (checkType && context?.detailedData) {
+    const check = canGenerateApproachSection(checkType, context.detailedData);
+    if (!check.canGenerate) {
+      console.warn(`Limited data for ${approach.name}: ${check.reason}`);
+      confidence = "low";
+    } else {
+      console.log(`Data available for ${approach.name}: ${check.reason}`);
+      confidence = "high";
+    }
+  }
 
   // Select appropriate prompt builder
   let prompt: string;
@@ -87,19 +129,19 @@ export async function generateApproachNarrative(
       prompt = buildGenericApproachPrompt(approach, context);
   }
 
-  console.log(`Generating narrative for approach: ${approach.name} (${approachType})`);
+  console.log(`Generating narrative for approach: ${approach.name} (${approachType}) - confidence: ${confidence}`);
 
   const narrative = await generateText(prompt, {
     systemPrompt: VALUATION_NARRATIVE_SYSTEM_PROMPT,
-    maxTokens: 1024,
-    temperature: 0.7,
+    maxTokens: 1500, // Increased for more detailed output
+    temperature: 0.6, // Slightly lower for more consistent output
   });
 
   return {
     approachName: approach.name,
     approachType,
     narrative,
-    confidence: "medium",
+    confidence,
   };
 }
 
@@ -187,7 +229,7 @@ export function analyzeWeighting(
  */
 export async function generateConclusionNarrative(
   parsedModel: ParsedModel,
-  context?: NarrativeContext
+  context?: ExtendedNarrativeContext
 ): Promise<string> {
   const approaches = parsedModel.summary?.approaches || [];
 
@@ -203,43 +245,93 @@ export async function generateConclusionNarrative(
 
   const prompt = buildConclusionPrompt(approaches, weights, context);
 
-  console.log("Generating conclusion narrative");
+  console.log("Generating conclusion narrative with detailed data");
 
   const narrative = await generateText(prompt, {
     systemPrompt: VALUATION_NARRATIVE_SYSTEM_PROMPT,
-    maxTokens: 1024,
-    temperature: 0.7,
+    maxTokens: 1200,
+    temperature: 0.6,
   });
 
   return narrative;
 }
 
 /**
+ * Determine which approaches to generate narratives for
+ * Only generates sections for approaches with available data
+ */
+export function determineApproachesToGenerate(
+  approaches: ApproachData[],
+  detailedData?: DetailedModelData
+): { approach: ApproachData; hasData: boolean; reason: string }[] {
+  return approaches.map(approach => {
+    const approachType = identifyApproachType(approach.name);
+    const checkType = getApproachCheckType(approachType);
+    
+    if (!checkType) {
+      return { approach, hasData: true, reason: 'Generic approach type' };
+    }
+    
+    const check = canGenerateApproachSection(checkType, detailedData);
+    return { 
+      approach, 
+      hasData: check.canGenerate, 
+      reason: check.reason 
+    };
+  });
+}
+
+/**
  * Generate all narratives for a valuation report
+ * Enhanced with detailed data for company-specific output
  */
 export async function generateAllNarratives(
   parsedModel: ParsedModel,
-  voiceTranscript?: string,
-  companyResearch?: { description: string; industry: string }
+  qualitativeContext?: string,
+  companyResearch?: { description: string; industry: string },
+  reportType: "FOUR09A" | "FIFTY_NINE_SIXTY" = "FOUR09A"
 ): Promise<NarrativeSet> {
   const warnings: string[] = [];
   const approaches = parsedModel.summary?.approaches || [];
+  const detailedData = parsedModel.detailedData;
 
-  // Build context
-  const context: NarrativeContext = {
+  // Log data availability for debugging
+  console.log('\n=== Data Availability for AI Generation ===');
+  const availabilitySummary = getDataAvailabilitySummary(detailedData);
+  availabilitySummary.forEach(line => console.log(line));
+  console.log('==========================================\n');
+
+  // Build extended context with detailed data
+  const context: ExtendedNarrativeContext = {
     companyName: parsedModel.companyName || "the Subject Company",
     valuationDate: parsedModel.valuationDate?.toISOString() || new Date().toISOString(),
-    reportType: "FOUR09A", // Default, should be passed in
-    voiceTranscript,
+    reportType,
+    qualitativeContext,
     companyDescription: companyResearch?.description,
     industry: companyResearch?.industry,
+    detailedData,
   };
+
+  // Determine which approaches have sufficient data
+  const approachAnalysis = determineApproachesToGenerate(approaches, detailedData);
+  
+  // Log approach analysis
+  console.log('\n=== Approach Generation Analysis ===');
+  approachAnalysis.forEach(({ approach, hasData, reason }) => {
+    console.log(`${hasData ? '✓' : '⚠'} ${approach.name}: ${reason}`);
+  });
+  console.log('====================================\n');
 
   // Generate approach narratives
   const approachNarratives: ApproachNarrative[] = [];
 
-  for (const approach of approaches) {
+  for (const { approach, hasData, reason } of approachAnalysis) {
     try {
+      if (!hasData) {
+        // Add warning but still attempt generation
+        warnings.push(`Limited data for ${approach.name}: ${reason}`);
+      }
+      
       const narrative = await generateApproachNarrative(approach, context);
       approachNarratives.push(narrative);
     } catch (error) {
@@ -264,6 +356,15 @@ export async function generateAllNarratives(
     conclusion = "[CONCLUSION GENERATION FAILED - Manual entry required]";
   }
 
+  // Add missing data warnings from detailed extraction
+  if (detailedData?.missingData) {
+    detailedData.missingData.forEach(item => {
+      if (!warnings.includes(item)) {
+        warnings.push(item);
+      }
+    });
+  }
+
   return {
     companyOverview: "", // Generated separately by research module
     industryOutlook: "", // Generated separately by research module
@@ -275,3 +376,56 @@ export async function generateAllNarratives(
   };
 }
 
+/**
+ * Generate a data gaps report for items that couldn't be extracted
+ */
+export function generateDataGapsReport(detailedData?: DetailedModelData): string[] {
+  const gaps: string[] = [];
+  
+  if (!detailedData) {
+    gaps.push('[MISSING: No detailed data extracted from model]');
+    return gaps;
+  }
+
+  // Company financials
+  if (!detailedData.companyFinancials?.ltmRevenue) {
+    gaps.push('[MISSING: Subject company LTM Revenue - please add manually]');
+  }
+  if (!detailedData.companyFinancials?.ltmEbitda) {
+    gaps.push('[MISSING: Subject company LTM EBITDA - please add manually if applicable]');
+  }
+
+  // GPC data
+  if (detailedData.guidelinePublicCompanies.length === 0) {
+    gaps.push('[MISSING: Guideline public company names and multiples not found in model]');
+  } else {
+    const missingMultiples = detailedData.guidelinePublicCompanies.filter(
+      c => !c.revenueMultiple && !c.ebitdaMultiple
+    );
+    if (missingMultiples.length > 0) {
+      gaps.push(`[MISSING: Multiples for ${missingMultiples.length} guideline companies]`);
+    }
+  }
+
+  // Transaction data
+  if (detailedData.guidelineTransactions.length === 0) {
+    gaps.push('[MISSING: Guideline transaction data not found in model]');
+  }
+
+  // Income approach
+  if (!detailedData.incomeApproachData?.discountRate) {
+    gaps.push('[MISSING: Discount rate/WACC not found in model]');
+  }
+
+  // Backsolve/OPM
+  if (!detailedData.backsolveData?.volatility) {
+    gaps.push('[MISSING: OPM volatility assumption not found in model]');
+  }
+
+  // Weighting
+  if (!detailedData.weightingData?.concludedEnterpriseValue) {
+    gaps.push('[MISSING: Concluded enterprise value not found in model]');
+  }
+
+  return gaps;
+}

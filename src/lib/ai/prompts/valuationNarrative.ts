@@ -1,270 +1,504 @@
 /**
  * Valuation Narrative Prompts
+ * 
+ * These prompts are designed to generate SPECIFIC, data-driven narratives
+ * that reference actual extracted values from the valuation model.
  */
 
-import type { ApproachData } from "@/types/excel";
+import type { ApproachData, DetailedModelData } from "@/types/excel";
 import type { WeightData, NarrativeContext } from "@/types/narrative";
 
 /**
- * System prompt for valuation narratives
+ * Format a number as currency
  */
-export const VALUATION_NARRATIVE_SYSTEM_PROMPT = `You are an expert business valuation analyst writing narrative sections for formal valuation reports. Your writing should be:
+function formatCurrency(value: number | null | undefined): string {
+  if (value === null || value === undefined) return "[Not Available]";
+  if (Math.abs(value) >= 1000000) {
+    return `$${(value / 1000000).toFixed(1)} million`;
+  }
+  if (Math.abs(value) >= 1000) {
+    return `$${(value / 1000).toFixed(0)} thousand`;
+  }
+  return `$${value.toLocaleString()}`;
+}
 
-- Professional and objective
-- Clear and well-structured
-- Suitable for regulatory review (409A) or legal proceedings (Gift & Estate)
-- Free of speculation or unsupported claims
-- Written in third person
-- Approximately 200-400 words per section
+/**
+ * Format a multiple
+ */
+function formatMultiple(value: number | null | undefined): string {
+  if (value === null || value === undefined) return "[N/A]";
+  return `${value.toFixed(2)}x`;
+}
 
-Focus on explaining methodology, rationale, and conclusions in a way that supports the valuation analysis.`;
+/**
+ * Format a percentage
+ */
+function formatPercent(value: number | null | undefined): string {
+  if (value === null || value === undefined) return "[N/A]";
+  if (value > 1) return `${value.toFixed(1)}%`;
+  return `${(value * 100).toFixed(1)}%`;
+}
+
+/**
+ * System prompt for valuation narratives - now requires specific data references
+ */
+export const VALUATION_NARRATIVE_SYSTEM_PROMPT = `You are an expert business valuation analyst writing narrative sections for formal valuation reports. 
+
+CRITICAL INSTRUCTIONS:
+- You will be provided with SPECIFIC DATA extracted from the valuation model
+- You MUST reference this specific data in your narrative
+- Do NOT write generic explanations of what the methodology is
+- The reader is a valuation professional who knows methodology - write about THIS specific company and data
+- Reference specific numbers, company names, multiples, and values exactly as provided
+- Show the math where applicable: multiple × metric = value
+- Use a professional, matter-of-fact tone
+- Avoid excessive hedging or disclaimers
+- Write in third person
+- Approximately 200-400 words per section`;
+
+/**
+ * Extended context for narrative generation with detailed data
+ */
+export interface ExtendedNarrativeContext extends NarrativeContext {
+  detailedData?: DetailedModelData;
+}
 
 /**
  * Build prompt for Guideline Public Company Method narrative
+ * Now includes specific comp data
  */
 export function buildGuidelineCompanyPrompt(
   data: ApproachData,
-  context?: NarrativeContext
+  context?: ExtendedNarrativeContext
 ): string {
-  let prompt = `Write a narrative section for the Guideline Public Company Method in a ${context?.reportType === "FOUR09A" ? "409A valuation" : "Gift & Estate valuation"} report.
+  const detailed = context?.detailedData;
+  const companies = detailed?.guidelinePublicCompanies || [];
+  const financials = detailed?.companyFinancials;
+  const weighting = detailed?.weightingData;
+  
+  // Find the GPC approach in weighting data for more details
+  const gpcApproach = weighting?.approaches.find(a => 
+    /guideline.*public|gpc/i.test(a.name)
+  );
+  
+  let prompt = `Write the Guideline Public Company Method section for a ${context?.reportType === "FOUR09A" ? "409A valuation" : "Gift & Estate valuation"} report.
 
-Approach Details:
-- Approach Name: ${data.name}
-- Indicated Value: ${data.indicatedValue ? `$${data.indicatedValue.toLocaleString()}` : "Not specified"}
-- Weight Applied: ${data.weight ? `${(data.weight * 100).toFixed(0)}%` : "Not specified"}
+SUBJECT COMPANY DATA:
+- Company Name: ${context?.companyName || "[Company Name]"}
+- Valuation Date: ${context?.valuationDate || "[Valuation Date]"}
+${financials?.ltmRevenue ? `- LTM Revenue: ${formatCurrency(financials.ltmRevenue)}` : ""}
+${financials?.ltmEbitda ? `- LTM EBITDA: ${formatCurrency(financials.ltmEbitda)}` : ""}
+${context?.industry ? `- Industry: ${context.industry}` : ""}
 `;
 
-  if (context?.companyName) {
-    prompt += `- Subject Company: ${context.companyName}\n`;
-  }
-
-  if (context?.industry) {
-    prompt += `- Industry: ${context.industry}\n`;
-  }
-
-  if (context?.voiceTranscript) {
-    prompt += `\nAnalyst Notes:\n${context.voiceTranscript}\n`;
+  if (companies.length > 0) {
+    prompt += `
+GUIDELINE COMPANIES SELECTED (${companies.length} companies):
+`;
+    companies.forEach((co, i) => {
+      prompt += `${i + 1}. ${co.name}${co.ticker ? ` (${co.ticker})` : ""}`;
+      if (co.revenueMultiple || co.ebitdaMultiple) {
+        prompt += `: `;
+        if (co.revenueMultiple) prompt += `EV/Revenue ${formatMultiple(co.revenueMultiple)}`;
+        if (co.revenueMultiple && co.ebitdaMultiple) prompt += `, `;
+        if (co.ebitdaMultiple) prompt += `EV/EBITDA ${formatMultiple(co.ebitdaMultiple)}`;
+      }
+      prompt += `\n`;
+    });
+    
+    // Calculate ranges
+    const revMultiples = companies.map(c => c.revenueMultiple).filter((m): m is number => m !== null);
+    const ebitdaMultiples = companies.map(c => c.ebitdaMultiple).filter((m): m is number => m !== null);
+    
+    if (revMultiples.length > 0) {
+      const revMin = Math.min(...revMultiples);
+      const revMax = Math.max(...revMultiples);
+      const revMedian = revMultiples.sort((a, b) => a - b)[Math.floor(revMultiples.length / 2)];
+      prompt += `
+REVENUE MULTIPLE ANALYSIS:
+- Range: ${formatMultiple(revMin)} - ${formatMultiple(revMax)}
+- Median: ${formatMultiple(revMedian)}
+`;
+    }
+    
+    if (ebitdaMultiples.length > 0) {
+      const ebitdaMin = Math.min(...ebitdaMultiples);
+      const ebitdaMax = Math.max(...ebitdaMultiples);
+      const ebitdaMedian = ebitdaMultiples.sort((a, b) => a - b)[Math.floor(ebitdaMultiples.length / 2)];
+      prompt += `
+EBITDA MULTIPLE ANALYSIS:
+- Range: ${formatMultiple(ebitdaMin)} - ${formatMultiple(ebitdaMax)}
+- Median: ${formatMultiple(ebitdaMedian)}
+`;
+    }
   }
 
   prompt += `
-The narrative should cover:
-1. Overview of the methodology and why it's appropriate for this valuation
-2. Selection criteria for guideline companies (what makes a good comparable)
-3. Relevant valuation multiples used (e.g., EV/Revenue, EV/EBITDA, P/E)
-4. How the subject company compares to the selected guideline companies
-5. Any adjustments made and their rationale
-6. Conclusion of value from this approach
+INDICATED VALUE FROM THIS APPROACH: ${data.indicatedValue ? formatCurrency(data.indicatedValue) : gpcApproach?.indicatedValue ? formatCurrency(gpcApproach.indicatedValue) : "[Not Available]"}
+WEIGHT ASSIGNED: ${data.weight ? formatPercent(data.weight) : gpcApproach?.weight ? formatPercent(gpcApproach.weight) : "[Not Specified]"}
+`;
 
-Write in a professional tone suitable for a formal valuation report. Do not make up specific company names or numbers - focus on the methodology and general rationale.`;
+  if (context?.qualitativeContext) {
+    prompt += `
+ANALYST QUALITATIVE CONTEXT:
+${context.qualitativeContext}
+`;
+  }
+
+  prompt += `
+Write a 2-4 paragraph narrative that:
+1. Names the specific guideline companies selected and explains WHY they are comparable (similar business model, size, market, growth profile)
+2. States the multiple ranges observed and discusses which multiple was selected
+3. Explains WHY the selected multiple is appropriate given the Subject Company's characteristics vs. the comps
+4. Shows the calculation: selected multiple × Subject Company metric = indicated value
+5. Notes any size adjustments or other considerations
+
+DO NOT write generic explanations of what the market approach is. Reference the SPECIFIC data above.`;
 
   return prompt;
 }
 
 /**
  * Build prompt for M&A Transaction Method narrative
+ * Now includes specific transaction data
  */
 export function buildMATransactionPrompt(
   data: ApproachData,
-  context?: NarrativeContext
+  context?: ExtendedNarrativeContext
 ): string {
-  let prompt = `Write a narrative section for the Guideline Transaction Method (M&A Comparables) in a ${context?.reportType === "FOUR09A" ? "409A valuation" : "Gift & Estate valuation"} report.
+  const detailed = context?.detailedData;
+  const transactions = detailed?.guidelineTransactions || [];
+  const financials = detailed?.companyFinancials;
+  const weighting = detailed?.weightingData;
+  
+  const gtmApproach = weighting?.approaches.find(a => 
+    /transaction|m&a|gtm/i.test(a.name)
+  );
+  
+  let prompt = `Write the Guideline Transaction Method section for a ${context?.reportType === "FOUR09A" ? "409A valuation" : "Gift & Estate valuation"} report.
 
-Approach Details:
-- Approach Name: ${data.name}
-- Indicated Value: ${data.indicatedValue ? `$${data.indicatedValue.toLocaleString()}` : "Not specified"}
-- Weight Applied: ${data.weight ? `${(data.weight * 100).toFixed(0)}%` : "Not specified"}
+SUBJECT COMPANY DATA:
+- Company Name: ${context?.companyName || "[Company Name]"}
+- Valuation Date: ${context?.valuationDate || "[Valuation Date]"}
+${financials?.ltmRevenue ? `- LTM Revenue: ${formatCurrency(financials.ltmRevenue)}` : ""}
+${financials?.ltmEbitda ? `- LTM EBITDA: ${formatCurrency(financials.ltmEbitda)}` : ""}
+${context?.industry ? `- Industry: ${context.industry}` : ""}
 `;
 
-  if (context?.companyName) {
-    prompt += `- Subject Company: ${context.companyName}\n`;
-  }
-
-  if (context?.industry) {
-    prompt += `- Industry: ${context.industry}\n`;
-  }
-
-  if (context?.voiceTranscript) {
-    prompt += `\nAnalyst Notes:\n${context.voiceTranscript}\n`;
+  if (transactions.length > 0) {
+    prompt += `
+GUIDELINE TRANSACTIONS SELECTED (${transactions.length} transactions):
+`;
+    transactions.forEach((tx, i) => {
+      prompt += `${i + 1}. ${tx.targetName}`;
+      if (tx.transactionDate) prompt += ` (${tx.transactionDate.toLocaleDateString?.() || tx.transactionDate})`;
+      if (tx.dealValue) prompt += ` - Deal Value: ${formatCurrency(tx.dealValue)}`;
+      if (tx.revenueMultiple) prompt += `, EV/Revenue: ${formatMultiple(tx.revenueMultiple)}`;
+      if (tx.ebitdaMultiple) prompt += `, EV/EBITDA: ${formatMultiple(tx.ebitdaMultiple)}`;
+      prompt += `\n`;
+    });
+    
+    // Calculate ranges
+    const revMultiples = transactions.map(t => t.revenueMultiple).filter((m): m is number => m !== null);
+    
+    if (revMultiples.length > 0) {
+      const revMin = Math.min(...revMultiples);
+      const revMax = Math.max(...revMultiples);
+      const revMedian = revMultiples.sort((a, b) => a - b)[Math.floor(revMultiples.length / 2)];
+      prompt += `
+TRANSACTION MULTIPLE ANALYSIS:
+- Revenue Multiple Range: ${formatMultiple(revMin)} - ${formatMultiple(revMax)}
+- Median: ${formatMultiple(revMedian)}
+`;
+    }
   }
 
   prompt += `
-The narrative should cover:
-1. Overview of the methodology and its applicability
-2. Selection criteria for comparable transactions
-3. Time period and relevance of selected transactions
-4. Relevant transaction multiples analyzed
-5. Comparison of subject company to transaction targets
-6. Adjustments for differences in size, profitability, or other factors
-7. Conclusion of value from this approach
+INDICATED VALUE FROM THIS APPROACH: ${data.indicatedValue ? formatCurrency(data.indicatedValue) : gtmApproach?.indicatedValue ? formatCurrency(gtmApproach.indicatedValue) : "[Not Available]"}
+WEIGHT ASSIGNED: ${data.weight ? formatPercent(data.weight) : gtmApproach?.weight ? formatPercent(gtmApproach.weight) : "[Not Specified]"}
+`;
 
-Write in a professional tone suitable for a formal valuation report.`;
+  if (context?.qualitativeContext) {
+    prompt += `
+ANALYST QUALITATIVE CONTEXT:
+${context.qualitativeContext}
+`;
+  }
+
+  prompt += `
+Write a 2-4 paragraph narrative that:
+1. Names the specific transactions selected and their relevance
+2. Notes the transaction dates and discusses timing relevance (more recent = more relevant)
+3. States the multiple ranges and the selected/applied multiple
+4. Explains adjustments for any differences vs. the Subject Company
+5. Shows the math: selected multiple × metric = indicated value
+
+DO NOT write generic explanations of what the transaction method is. Reference the SPECIFIC data above.`;
 
   return prompt;
 }
 
 /**
  * Build prompt for Income Approach (DCF) narrative
+ * Now includes specific projection and discount rate data
  */
 export function buildIncomeApproachPrompt(
   data: ApproachData,
-  context?: NarrativeContext
+  context?: ExtendedNarrativeContext
 ): string {
-  let prompt = `Write a narrative section for the Discounted Cash Flow (DCF) Analysis in a ${context?.reportType === "FOUR09A" ? "409A valuation" : "Gift & Estate valuation"} report.
+  const detailed = context?.detailedData;
+  const incomeData = detailed?.incomeApproachData;
+  const financials = detailed?.companyFinancials;
+  
+  let prompt = `Write the Income Approach (Discounted Cash Flow) section for a ${context?.reportType === "FOUR09A" ? "409A valuation" : "Gift & Estate valuation"} report.
 
-Approach Details:
-- Approach Name: ${data.name}
-- Indicated Value: ${data.indicatedValue ? `$${data.indicatedValue.toLocaleString()}` : "Not specified"}
-- Weight Applied: ${data.weight ? `${(data.weight * 100).toFixed(0)}%` : "Not specified"}
+SUBJECT COMPANY DATA:
+- Company Name: ${context?.companyName || "[Company Name]"}
+- Valuation Date: ${context?.valuationDate || "[Valuation Date]"}
+${financials?.ltmRevenue ? `- Current Revenue: ${formatCurrency(financials.ltmRevenue)}` : ""}
+${financials?.ltmEbitda ? `- Current EBITDA: ${formatCurrency(financials.ltmEbitda)}` : ""}
 `;
 
-  if (context?.companyName) {
-    prompt += `- Subject Company: ${context.companyName}\n`;
-  }
+  if (incomeData) {
+    prompt += `
+DCF MODEL INPUTS:
+- Discount Rate/WACC: ${incomeData.discountRate ? formatPercent(incomeData.discountRate) : "[Not Available]"}
+- Terminal Growth Rate: ${incomeData.terminalGrowthRate ? formatPercent(incomeData.terminalGrowthRate) : "[Not Available]"}
+- Terminal Multiple: ${incomeData.terminalMultiple ? formatMultiple(incomeData.terminalMultiple) : "[Not Available]"}
+- Terminal Methodology: ${incomeData.terminalMethodology === 'perpetuity' ? 'Gordon Growth (Perpetuity)' : incomeData.terminalMethodology === 'exitMultiple' ? 'Exit Multiple' : '[Not Specified]'}
+- Projection Period: ${incomeData.projectionYears ? `${incomeData.projectionYears} years` : "[Not Available]"}
+`;
 
-  if (context?.voiceTranscript) {
-    prompt += `\nAnalyst Notes:\n${context.voiceTranscript}\n`;
+    if (incomeData.revenueProjections.length > 0) {
+      prompt += `
+REVENUE PROJECTIONS:
+`;
+      incomeData.revenueProjections.forEach(proj => {
+        prompt += `- Year ${proj.year}: ${formatCurrency(proj.value)}${proj.growthRate ? ` (${formatPercent(proj.growthRate)} growth)` : ""}\n`;
+      });
+    }
+
+    if (incomeData.cashFlowProjections.length > 0) {
+      prompt += `
+CASH FLOW PROJECTIONS:
+`;
+      incomeData.cashFlowProjections.forEach(proj => {
+        prompt += `- Year ${proj.year}: ${formatCurrency(proj.value)}\n`;
+      });
+    }
+
+    prompt += `
+DCF RESULTS:
+${incomeData.presentValueCashFlows ? `- PV of Discrete Period Cash Flows: ${formatCurrency(incomeData.presentValueCashFlows)}` : ""}
+${incomeData.terminalValue ? `- Terminal Value: ${formatCurrency(incomeData.terminalValue)}` : ""}
+${incomeData.presentValueTerminal ? `- PV of Terminal Value: ${formatCurrency(incomeData.presentValueTerminal)}` : ""}
+`;
   }
 
   prompt += `
-The narrative should cover:
-1. Overview of the DCF methodology and its appropriateness
-2. Discussion of the projection period and basis for projections
-3. Key assumptions:
-   - Revenue growth assumptions
-   - Margin assumptions
-   - Capital expenditure requirements
-   - Working capital considerations
-4. Discount rate derivation (WACC or cost of equity)
-5. Terminal value methodology (Gordon Growth or Exit Multiple)
-6. Sensitivity analysis considerations
-7. Conclusion of value from this approach
+INDICATED VALUE FROM THIS APPROACH: ${data.indicatedValue ? formatCurrency(data.indicatedValue) : incomeData?.indicatedValue ? formatCurrency(incomeData.indicatedValue) : "[Not Available]"}
+WEIGHT ASSIGNED: ${data.weight ? formatPercent(data.weight) : "[Not Specified]"}
+`;
 
-Write in a professional tone suitable for a formal valuation report. Focus on methodology and general considerations rather than specific numbers.`;
+  if (context?.qualitativeContext) {
+    prompt += `
+ANALYST QUALITATIVE CONTEXT:
+${context.qualitativeContext}
+`;
+  }
+
+  prompt += `
+Write a 2-4 paragraph narrative that:
+1. States the discount rate/WACC used and briefly note how it was derived
+2. Discusses the projection period and key growth assumptions
+3. Explains the terminal value methodology (growth rate or exit multiple)
+4. Summarizes the PV of cash flows and terminal value
+5. States the indicated value from this approach
+
+Reference the SPECIFIC numbers provided above. Do not write generic DCF methodology explanations.`;
 
   return prompt;
 }
 
 /**
- * Build prompt for Backsolve Method narrative
+ * Build prompt for Backsolve/OPM Method narrative
+ * Now includes specific transaction and OPM inputs
  */
 export function buildBacksolvePrompt(
   data: ApproachData,
-  context?: NarrativeContext
+  context?: ExtendedNarrativeContext
 ): string {
-  let prompt = `Write a narrative section for the Backsolve Method in a 409A valuation report.
+  const detailed = context?.detailedData;
+  const backsolve = detailed?.backsolveData;
+  
+  let prompt = `Write the ${backsolve?.methodology === 'opm' ? 'Option Pricing Method (OPM)' : 'Backsolve Method'} section for a 409A valuation report.
 
-Approach Details:
-- Approach Name: ${data.name}
-- Indicated Value: ${data.indicatedValue ? `$${data.indicatedValue.toLocaleString()}` : "Not specified"}
-- Weight Applied: ${data.weight ? `${(data.weight * 100).toFixed(0)}%` : "Not specified"}
+SUBJECT COMPANY DATA:
+- Company Name: ${context?.companyName || "[Company Name]"}
+- Valuation Date: ${context?.valuationDate || "[Valuation Date]"}
 `;
 
-  if (context?.companyName) {
-    prompt += `- Subject Company: ${context.companyName}\n`;
-  }
+  if (backsolve) {
+    prompt += `
+${backsolve.methodology === 'opm' ? 'OPM' : 'BACKSOLVE'} INPUTS:
+`;
+    
+    if (backsolve.transactionDate) {
+      prompt += `- Transaction Date: ${backsolve.transactionDate.toLocaleDateString?.() || backsolve.transactionDate}\n`;
+    }
+    if (backsolve.securityType) {
+      prompt += `- Security Type: ${backsolve.securityType}\n`;
+    }
+    if (backsolve.pricePerShare) {
+      prompt += `- Price Per Share: $${backsolve.pricePerShare.toFixed(4)}\n`;
+    }
+    if (backsolve.transactionAmount) {
+      prompt += `- Transaction Amount: ${formatCurrency(backsolve.transactionAmount)}\n`;
+    }
+    if (backsolve.postMoneyValuation) {
+      prompt += `- Post-Money Valuation: ${formatCurrency(backsolve.postMoneyValuation)}\n`;
+    }
+    
+    prompt += `
+OPM ALLOCATION INPUTS:
+- Volatility: ${backsolve.volatility ? formatPercent(backsolve.volatility) : "[Not Available]"}
+- Risk-Free Rate: ${backsolve.riskFreeRate ? formatPercent(backsolve.riskFreeRate) : "[Not Available]"}
+- Time to Liquidity: ${backsolve.timeToLiquidity ? `${backsolve.timeToLiquidity.toFixed(1)} years` : "[Not Available]"}
+`;
 
-  if (context?.voiceTranscript) {
-    prompt += `\nAnalyst Notes:\n${context.voiceTranscript}\n`;
+    if (backsolve.indicatedCommonValue || backsolve.indicatedPerShareValue) {
+      prompt += `
+ALLOCATION RESULTS:
+${backsolve.indicatedCommonValue ? `- Indicated Common Stock Value: ${formatCurrency(backsolve.indicatedCommonValue)}` : ""}
+${backsolve.indicatedPerShareValue ? `- Indicated Per Share Value: $${backsolve.indicatedPerShareValue.toFixed(4)}` : ""}
+`;
+    }
   }
 
   prompt += `
-The narrative should cover:
-1. Overview of the Backsolve methodology
-2. Description of the recent transaction used (e.g., Series funding round)
-3. Arm's-length nature of the transaction
-4. Allocation methodology (e.g., Option Pricing Method, PWERM)
-5. Key assumptions in the allocation
-6. Relevance and recency of the transaction
-7. Conclusion of value from this approach
+INDICATED VALUE FROM THIS APPROACH: ${data.indicatedValue ? formatCurrency(data.indicatedValue) : "[Not Available]"}
+WEIGHT ASSIGNED: ${data.weight ? formatPercent(data.weight) : "[Not Specified]"}
+`;
 
-Write in a professional tone suitable for a 409A valuation report.`;
+  if (context?.qualitativeContext) {
+    prompt += `
+ANALYST QUALITATIVE CONTEXT:
+${context.qualitativeContext}
+`;
+  }
+
+  prompt += `
+Write a 2-4 paragraph narrative that:
+1. Identifies the specific transaction used (date, security type, amount)
+2. Confirms the arm's-length nature of the transaction
+3. Explains the OPM allocation methodology and key inputs (volatility, time to liquidity)
+4. Notes how the common stock value was derived from the transaction
+5. Discusses the relevance based on transaction recency
+
+Reference the SPECIFIC data above. For standard OPM language, note that volatility was based on publicly traded guideline company analysis and the risk-free rate reflects US Treasury rates.`;
 
   return prompt;
 }
 
 /**
- * Build prompt for OPM (Option Pricing Method) narrative
+ * Build prompt for OPM narrative (alias for backsolve with OPM context)
  */
 export function buildOPMPrompt(
   data: ApproachData,
-  context?: NarrativeContext
+  context?: ExtendedNarrativeContext
 ): string {
-  let prompt = `Write a narrative section for the Option Pricing Method (OPM) equity allocation in a 409A valuation report.
-
-Approach Details:
-- Approach Name: ${data.name}
-- Indicated Value: ${data.indicatedValue ? `$${data.indicatedValue.toLocaleString()}` : "Not specified"}
-- Weight Applied: ${data.weight ? `${(data.weight * 100).toFixed(0)}%` : "Not specified"}
-`;
-
-  if (context?.companyName) {
-    prompt += `- Subject Company: ${context.companyName}\n`;
+  // Use backsolve prompt but ensure methodology is set to OPM
+  if (context?.detailedData?.backsolveData) {
+    context.detailedData.backsolveData.methodology = 'opm';
   }
-
-  if (context?.voiceTranscript) {
-    prompt += `\nAnalyst Notes:\n${context.voiceTranscript}\n`;
-  }
-
-  prompt += `
-The narrative should cover:
-1. Overview of the Option Pricing Method
-2. When OPM is appropriate (multiple classes of equity with different rights)
-3. Key inputs:
-   - Equity value
-   - Expected time to exit
-   - Volatility assumption and derivation
-   - Risk-free rate
-4. Breakpoints used in the allocation
-5. Treatment of common stock and preferred stock
-6. Resulting allocation to common stock
-7. Any DLOM applied and rationale
-
-Write in a professional tone suitable for a 409A valuation report.`;
-
-  return prompt;
+  return buildBacksolvePrompt(data, context);
 }
 
 /**
  * Build prompt for valuation conclusion narrative
+ * Now includes specific weighting rationale
  */
 export function buildConclusionPrompt(
   approaches: ApproachData[],
   weights: WeightData[],
-  context?: NarrativeContext
+  context?: ExtendedNarrativeContext
 ): string {
-  let prompt = `Write a conclusion narrative for a ${context?.reportType === "FOUR09A" ? "409A valuation" : "Gift & Estate valuation"} report that explains the weighting and reconciliation of multiple valuation approaches.
+  const detailed = context?.detailedData;
+  const weighting = detailed?.weightingData;
+  const backsolve = detailed?.backsolveData;
+  
+  let prompt = `Write the Conclusion and Weighting Rationale section for a ${context?.reportType === "FOUR09A" ? "409A valuation" : "Gift & Estate valuation"} report.
 
-Valuation Approaches Used:
+SUBJECT COMPANY:
+- Company Name: ${context?.companyName || "[Company Name]"}
+- Valuation Date: ${context?.valuationDate || "[Valuation Date]"}
+
+VALUATION APPROACHES AND WEIGHTING:
 `;
 
-  approaches.forEach((approach, index) => {
+  // Use detailed weighting data if available, otherwise use provided approaches
+  const weightedApproaches = weighting?.approaches || approaches.map(a => ({
+    name: a.name,
+    indicatedValue: a.indicatedValue || 0,
+    weight: a.weight || 0,
+    weightedValue: (a.indicatedValue || 0) * (a.weight || 0),
+  }));
+
+  weightedApproaches.forEach((approach, index) => {
     const weight = weights.find((w) => w.approachName === approach.name);
-    prompt += `${index + 1}. ${approach.name}
-   - Indicated Value: ${approach.indicatedValue ? `$${approach.indicatedValue.toLocaleString()}` : "Not specified"}
-   - Weight: ${weight?.weight ? `${(weight.weight * 100).toFixed(0)}%` : approach.weight ? `${(approach.weight * 100).toFixed(0)}%` : "Not specified"}
+    const appliedWeight = weight?.weight || approach.weight || 0;
+    prompt += `
+${index + 1}. ${approach.name}
+   - Indicated Value: ${formatCurrency(approach.indicatedValue)}
+   - Weight: ${formatPercent(appliedWeight)}
+   - Weighted Value: ${formatCurrency(approach.indicatedValue * appliedWeight)}
 `;
   });
 
-  if (context?.voiceTranscript) {
-    prompt += `\nAnalyst Notes:\n${context.voiceTranscript}\n`;
+  prompt += `
+CONCLUDED VALUES:
+- Concluded Enterprise Value: ${weighting?.concludedEnterpriseValue ? formatCurrency(weighting.concludedEnterpriseValue) : "[Calculate from above]"}
+${weighting?.dlomPercentage ? `- DLOM Applied: ${formatPercent(weighting.dlomPercentage)}` : ""}
+${weighting?.valueAfterDlom ? `- Value After DLOM: ${formatCurrency(weighting.valueAfterDlom)}` : ""}
+${weighting?.perShareValue ? `- Per Share Value: $${weighting.perShareValue.toFixed(4)}` : ""}
+`;
+
+  // Add weighting context
+  if (backsolve?.transactionDate) {
+    const txDate = new Date(backsolve.transactionDate);
+    const valuationDate = context?.valuationDate ? new Date(context.valuationDate) : new Date();
+    const monthsAgo = Math.round((valuationDate.getTime() - txDate.getTime()) / (1000 * 60 * 60 * 24 * 30));
+    
+    prompt += `
+WEIGHTING CONTEXT:
+- Most Recent Transaction: ${monthsAgo} months before valuation date
+`;
+    
+    if (monthsAgo <= 6) {
+      prompt += `- Transaction is recent - typically supports higher weight on backsolve/OPM\n`;
+    } else if (monthsAgo > 12) {
+      prompt += `- Transaction is over 12 months old - may warrant reduced weight\n`;
+    }
+  }
+
+  if (context?.qualitativeContext) {
+    prompt += `
+ANALYST QUALITATIVE CONTEXT:
+${context.qualitativeContext}
+`;
   }
 
   prompt += `
-The conclusion narrative should:
-1. Summarize the approaches used and why each was considered
-2. Explain the rationale for the weighting applied to each approach
-3. Discuss any approaches that received lower weight and why
-4. Address the reliability and relevance of each approach
-5. State the concluded value and its basis
-6. Note any key assumptions or limiting conditions
+Write a 2-3 paragraph narrative that:
+1. Lists each approach used with its indicated value and weight
+2. Explains WHY each approach received its assigned weight - be specific:
+   - If backsolve has high weight: "given the Series B financing occurred 4 months prior..."
+   - If an approach has low weight: "received reduced weight due to limited comparable data..."
+   - If market approaches differ: "the GPC method received higher weight due to strong comp set..."
+3. Shows the weighted average calculation leading to the concluded value
+4. States the final concluded value with any DLOM applied
 
-Consider these weighting principles:
-- Recent arm's-length transactions (< 6 months) are typically given significant weight
-- OPM-based values may receive less weight if the OPM date is more than 1 year old
-- Income approach may receive less weight for pre-revenue companies
-- Market approaches may receive less weight if the comparable set is weak
-
-Write in a professional tone suitable for a formal valuation report.`;
+Reference the SPECIFIC values above. Do not write generic weighting platitudes.`;
 
   return prompt;
 }
@@ -274,32 +508,134 @@ Write in a professional tone suitable for a formal valuation report.`;
  */
 export function buildGenericApproachPrompt(
   data: ApproachData,
-  context?: NarrativeContext
+  context?: ExtendedNarrativeContext
 ): string {
   let prompt = `Write a narrative section for the "${data.name}" valuation approach in a ${context?.reportType === "FOUR09A" ? "409A valuation" : "Gift & Estate valuation"} report.
 
-Approach Details:
-- Indicated Value: ${data.indicatedValue ? `$${data.indicatedValue.toLocaleString()}` : "Not specified"}
-- Weight Applied: ${data.weight ? `${(data.weight * 100).toFixed(0)}%` : "Not specified"}
+SUBJECT COMPANY:
+- Company Name: ${context?.companyName || "[Company Name]"}
+- Valuation Date: ${context?.valuationDate || "[Valuation Date]"}
+
+APPROACH DETAILS:
+- Indicated Value: ${data.indicatedValue ? formatCurrency(data.indicatedValue) : "[Not Specified]"}
+- Weight Applied: ${data.weight ? formatPercent(data.weight) : "[Not Specified]"}
 `;
 
-  if (context?.companyName) {
-    prompt += `- Subject Company: ${context.companyName}\n`;
-  }
-
-  if (context?.voiceTranscript) {
-    prompt += `\nAnalyst Notes:\n${context.voiceTranscript}\n`;
+  if (context?.qualitativeContext) {
+    prompt += `
+ANALYST QUALITATIVE CONTEXT:
+${context.qualitativeContext}
+`;
   }
 
   prompt += `
-Write a professional narrative that:
-1. Explains the methodology
-2. Discusses its appropriateness for this valuation
-3. Notes key assumptions
-4. Presents the conclusion
+Write a professional 2-3 paragraph narrative that:
+1. Explains the methodology briefly
+2. Discusses key inputs and assumptions
+3. Presents the indicated value conclusion
 
-Write in a professional tone suitable for a formal valuation report.`;
+Reference specific values where available.`;
 
   return prompt;
 }
 
+/**
+ * Check if we have sufficient data to generate a specific approach section
+ */
+export function canGenerateApproachSection(
+  approachType: 'gpc' | 'gtm' | 'income' | 'backsolve',
+  detailedData?: DetailedModelData
+): { canGenerate: boolean; reason: string } {
+  if (!detailedData) {
+    return { canGenerate: false, reason: 'No detailed data available' };
+  }
+
+  switch (approachType) {
+    case 'gpc':
+      if (detailedData.guidelinePublicCompanies.length > 0) {
+        return { canGenerate: true, reason: `${detailedData.guidelinePublicCompanies.length} guideline companies found` };
+      }
+      return { canGenerate: false, reason: 'No guideline public companies extracted' };
+    
+    case 'gtm':
+      if (detailedData.guidelineTransactions.length > 0) {
+        return { canGenerate: true, reason: `${detailedData.guidelineTransactions.length} transactions found` };
+      }
+      return { canGenerate: false, reason: 'No guideline transactions extracted' };
+    
+    case 'income':
+      if (detailedData.incomeApproachData?.discountRate) {
+        return { canGenerate: true, reason: 'DCF data found with discount rate' };
+      }
+      return { canGenerate: false, reason: 'No DCF/income approach data extracted' };
+    
+    case 'backsolve':
+      if (detailedData.backsolveData?.volatility || detailedData.backsolveData?.pricePerShare) {
+        return { canGenerate: true, reason: 'Backsolve/OPM data found' };
+      }
+      return { canGenerate: false, reason: 'No backsolve/OPM data extracted' };
+    
+    default:
+      return { canGenerate: false, reason: 'Unknown approach type' };
+  }
+}
+
+/**
+ * Get a summary of what data is available for AI generation
+ */
+export function getDataAvailabilitySummary(detailedData?: DetailedModelData): string[] {
+  const summary: string[] = [];
+  
+  if (!detailedData) {
+    summary.push('⚠️ No detailed data extracted from model');
+    return summary;
+  }
+
+  // Company financials
+  const fin = detailedData.companyFinancials;
+  if (fin?.ltmRevenue) {
+    summary.push(`✓ Company Revenue: ${formatCurrency(fin.ltmRevenue)}`);
+  } else {
+    summary.push('⚠️ Company revenue not found');
+  }
+
+  // GPC
+  if (detailedData.guidelinePublicCompanies.length > 0) {
+    summary.push(`✓ Guideline Companies: ${detailedData.guidelinePublicCompanies.length} found`);
+    detailedData.guidelinePublicCompanies.slice(0, 3).forEach(c => {
+      summary.push(`  - ${c.name}${c.ticker ? ` (${c.ticker})` : ''}`);
+    });
+  } else {
+    summary.push('⚠️ No guideline public companies found');
+  }
+
+  // Transactions
+  if (detailedData.guidelineTransactions.length > 0) {
+    summary.push(`✓ Guideline Transactions: ${detailedData.guidelineTransactions.length} found`);
+  } else {
+    summary.push('⚠️ No guideline transactions found');
+  }
+
+  // Income approach
+  if (detailedData.incomeApproachData?.discountRate) {
+    summary.push(`✓ DCF Data: Discount rate ${formatPercent(detailedData.incomeApproachData.discountRate)}`);
+  } else {
+    summary.push('⚠️ No DCF/income approach data found');
+  }
+
+  // Backsolve
+  if (detailedData.backsolveData?.volatility) {
+    summary.push(`✓ OPM Data: Volatility ${formatPercent(detailedData.backsolveData.volatility)}`);
+  } else {
+    summary.push('⚠️ No backsolve/OPM data found');
+  }
+
+  // Weighting
+  if (detailedData.weightingData?.approaches.length) {
+    summary.push(`✓ Weighting: ${detailedData.weightingData.approaches.length} approaches weighted`);
+  } else {
+    summary.push('⚠️ No weighting data found');
+  }
+
+  return summary;
+}

@@ -45,6 +45,25 @@ export interface ReportContent {
 
   // Citations for industry section
   industryCitations: Citation[];
+  
+  // Detailed data for summary blocks (from Excel parsing)
+  detailedData?: {
+    guidelineCompanies?: { name: string; ticker?: string; revenueMultiple?: number; ebitdaMultiple?: number }[];
+    guidelineTransactions?: { targetName: string; revenueMultiple?: number; date?: string }[];
+    incomeApproach?: { discountRate?: number; terminalGrowthRate?: number; indicatedValue?: number };
+    backsolve?: { volatility?: number; timeToLiquidity?: number; indicatedValue?: number };
+    weighting?: { 
+      approaches: { name: string; indicatedValue: number; weight: number }[];
+      concludedValue?: number;
+      dlom?: number;
+      valueAfterDlom?: number;
+    };
+    companyFinancials?: { revenue?: number; ebitda?: number };
+  };
+
+  // DLOM data
+  dlom: number | null;
+  concludedValue: number | null;
 
   // Metadata
   flags: Flag[];

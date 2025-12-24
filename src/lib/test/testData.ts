@@ -277,6 +277,8 @@ export function createMockReportContent(overrides?: Partial<ReportContent>): Rep
     conclusion: createMockSectionContent({ content: narrativeSet.conclusion }),
     approachNarratives: narrativeSet.approachNarratives,
     industryCitations: createMockIndustryResearch().citations,
+    dlom: 0.15,
+    concludedValue: 25000000,
     flags: [],
     warnings: [],
     generatedAt: new Date(),

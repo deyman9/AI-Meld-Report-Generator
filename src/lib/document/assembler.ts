@@ -70,7 +70,7 @@ export async function assembleReport(
   // Valuation Analysis Sections
   for (const narrative of content.approachNarratives) {
     sections.push(createHeading(`VALUATION ANALYSIS - ${narrative.approachName.toUpperCase()}`, 1));
-    sections.push(...createApproachSection(narrative));
+    sections.push(...createApproachSection(narrative, content));
     sections.push(createSeparator());
   }
 
@@ -213,9 +213,12 @@ function createEconomicSection(content: ReportContent): DocumentChild[] {
 }
 
 /**
- * Create valuation approach section
+ * Create valuation approach section with summary block
  */
-function createApproachSection(narrative: { approachName: string; narrative: string; confidence: string }): DocumentChild[] {
+function createApproachSection(
+  narrative: { approachName: string; narrative: string; confidence: string },
+  content?: ReportContent
+): DocumentChild[] {
   const sections: DocumentChild[] = [];
 
   const paragraphs = narrative.narrative.split("\n\n").filter((p) => p.trim());
@@ -232,7 +235,112 @@ function createApproachSection(narrative: { approachName: string; narrative: str
     sections.push(createPlaceholder(`${narrative.approachName} narrative could not be generated`));
   }
 
+  // Add summary block based on approach type
+  const summaryBlock = createApproachSummaryBlock(narrative.approachName, content);
+  if (summaryBlock.length > 0) {
+    sections.push(createParagraph("", { spacing: { before: 200 } }));
+    sections.push(createParagraph("Summary:", { bold: true, spacing: { after: 100 } }));
+    sections.push(...summaryBlock);
+  }
+
   return sections;
+}
+
+/**
+ * Create summary block for an approach with actual extracted data
+ */
+function createApproachSummaryBlock(approachName: string, content?: ReportContent): DocumentChild[] {
+  const blocks: DocumentChild[] = [];
+  const nameLower = approachName.toLowerCase();
+  const detailed = content?.detailedData;
+  
+  if (!detailed) return blocks;
+
+  // Guideline Public Company summary
+  if (nameLower.includes('guideline') && nameLower.includes('public') || nameLower.includes('gpc')) {
+    const companies = detailed.guidelineCompanies || [];
+    if (companies.length > 0) {
+      const companyNames = companies.slice(0, 5).map(c => 
+        c.ticker ? `${c.name} (${c.ticker})` : c.name
+      ).join(', ');
+      blocks.push(createParagraph(`• Guideline Companies: ${companyNames}`, { indent: { left: 360 } }));
+      
+      const revMultiples = companies.map(c => c.revenueMultiple).filter((m): m is number => m != null);
+      if (revMultiples.length > 0) {
+        const min = Math.min(...revMultiples).toFixed(2);
+        const max = Math.max(...revMultiples).toFixed(2);
+        blocks.push(createParagraph(`• Revenue Multiple Range: ${min}x - ${max}x`, { indent: { left: 360 } }));
+      }
+      
+      if (detailed.companyFinancials?.revenue) {
+        blocks.push(createParagraph(`• Applied To: Revenue of ${formatCurrency(detailed.companyFinancials.revenue)}`, { indent: { left: 360 } }));
+      }
+    }
+  }
+
+  // Guideline Transaction summary
+  if (nameLower.includes('transaction') || nameLower.includes('m&a') || nameLower.includes('gtm')) {
+    const transactions = detailed.guidelineTransactions || [];
+    if (transactions.length > 0) {
+      blocks.push(createParagraph(`• Transactions Analyzed: ${transactions.length}`, { indent: { left: 360 } }));
+      const txNames = transactions.slice(0, 3).map(t => t.targetName).join(', ');
+      blocks.push(createParagraph(`• Targets: ${txNames}`, { indent: { left: 360 } }));
+      
+      const revMultiples = transactions.map(t => t.revenueMultiple).filter((m): m is number => m != null);
+      if (revMultiples.length > 0) {
+        const min = Math.min(...revMultiples).toFixed(2);
+        const max = Math.max(...revMultiples).toFixed(2);
+        blocks.push(createParagraph(`• Revenue Multiple Range: ${min}x - ${max}x`, { indent: { left: 360 } }));
+      }
+    }
+  }
+
+  // Income Approach summary
+  if (nameLower.includes('income') || nameLower.includes('dcf') || nameLower.includes('discount')) {
+    const income = detailed.incomeApproach;
+    if (income) {
+      if (income.discountRate) {
+        blocks.push(createParagraph(`• Discount Rate/WACC: ${(income.discountRate * 100).toFixed(1)}%`, { indent: { left: 360 } }));
+      }
+      if (income.terminalGrowthRate) {
+        blocks.push(createParagraph(`• Terminal Growth Rate: ${(income.terminalGrowthRate * 100).toFixed(1)}%`, { indent: { left: 360 } }));
+      }
+      if (income.indicatedValue) {
+        blocks.push(createParagraph(`• Indicated Value: ${formatCurrency(income.indicatedValue)}`, { indent: { left: 360 } }));
+      }
+    }
+  }
+
+  // Backsolve/OPM summary
+  if (nameLower.includes('backsolve') || nameLower.includes('opm') || nameLower.includes('option')) {
+    const backsolve = detailed.backsolve;
+    if (backsolve) {
+      if (backsolve.volatility) {
+        blocks.push(createParagraph(`• Volatility: ${(backsolve.volatility * 100).toFixed(1)}%`, { indent: { left: 360 } }));
+      }
+      if (backsolve.timeToLiquidity) {
+        blocks.push(createParagraph(`• Time to Liquidity: ${backsolve.timeToLiquidity.toFixed(1)} years`, { indent: { left: 360 } }));
+      }
+      if (backsolve.indicatedValue) {
+        blocks.push(createParagraph(`• Indicated Value: ${formatCurrency(backsolve.indicatedValue)}`, { indent: { left: 360 } }));
+      }
+    }
+  }
+
+  return blocks;
+}
+
+/**
+ * Format currency for display
+ */
+function formatCurrency(value: number): string {
+  if (Math.abs(value) >= 1000000) {
+    return `$${(value / 1000000).toFixed(1)} million`;
+  }
+  if (Math.abs(value) >= 1000) {
+    return `$${(value / 1000).toFixed(0)} thousand`;
+  }
+  return `$${value.toLocaleString()}`;
 }
 
 /**
@@ -240,25 +348,52 @@ function createApproachSection(narrative: { approachName: string; narrative: str
  */
 function createConclusionSection(content: ReportContent): DocumentChild[] {
   const sections: DocumentChild[] = [];
+  const weighting = content.detailedData?.weighting;
 
-  // Create weighting table
-  if (content.approachNarratives.length > 0) {
+  // Create weighting table with actual data if available
+  if (content.approachNarratives.length > 0 || weighting?.approaches.length) {
     sections.push(createParagraph("Valuation Summary:", { bold: true, spacing: { after: 200 } }));
+    
+    // Use detailed weighting data if available, otherwise use narratives as placeholders
+    const approaches = weighting?.approaches || content.approachNarratives.map(n => ({
+      name: n.approachName,
+      indicatedValue: 0,
+      weight: 0,
+    }));
     
     // Build table data
     const tableData = {
       headers: ["Approach", "Indicated Value", "Weight"],
-      rows: content.approachNarratives.map(n => ({
+      rows: approaches.map(a => ({
         cells: [
-          { content: n.approachName },
-          { content: "[Value from model]", alignment: "right" as const },
-          { content: "[Weight from model]", alignment: "right" as const }
+          { content: a.name },
+          { content: a.indicatedValue > 0 ? formatCurrency(a.indicatedValue) : "[From model]", alignment: "right" as const },
+          { content: a.weight > 0 ? `${(a.weight * 100).toFixed(0)}%` : "[From model]", alignment: "right" as const }
         ]
       })),
       headerStyle: "bold" as const,
     };
     
     sections.push(createTable(tableData));
+    sections.push(createParagraph("", { spacing: { before: 200 } }));
+
+    // Add concluded value line if available
+    if (weighting?.concludedValue) {
+      sections.push(createParagraph(`Concluded Enterprise Value: ${formatCurrency(weighting.concludedValue)}`, { bold: true }));
+    }
+    if (weighting?.dlom) {
+      sections.push(createParagraph(`DLOM Applied: ${(weighting.dlom * 100).toFixed(1)}%`));
+    }
+    if (weighting?.valueAfterDlom) {
+      sections.push(createParagraph(`Value After DLOM: ${formatCurrency(weighting.valueAfterDlom)}`, { bold: true }));
+    }
+    if (content.concludedValue && !weighting?.concludedValue) {
+      sections.push(createParagraph(`Concluded Value: ${formatCurrency(content.concludedValue)}`, { bold: true }));
+    }
+    if (content.dlom && !weighting?.dlom) {
+      sections.push(createParagraph(`DLOM: ${(content.dlom * 100).toFixed(1)}%`));
+    }
+    
     sections.push(createParagraph("", { spacing: { before: 200 } }));
   }
 
