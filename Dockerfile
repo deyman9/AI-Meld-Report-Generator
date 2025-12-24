@@ -15,6 +15,9 @@ COPY prisma ./prisma/
 
 RUN npm ci
 
+# Install sharp for image optimization
+RUN npm install sharp
+
 # Copy source files
 COPY . .
 
@@ -27,18 +30,14 @@ RUN npm run build
 # Production stage
 FROM node:20-alpine AS runner
 
-# Install OpenSSL for Prisma
-RUN apk add --no-cache openssl
+# Install OpenSSL for Prisma and sharp dependencies
+RUN apk add --no-cache openssl vips-dev
 
 WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
-
-# Create non-root user for security
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
 
 # Copy built application
 COPY --from=builder /app/public ./public
@@ -51,16 +50,17 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 
-# Create uploads directory structure with proper permissions
+# Copy sharp
+COPY --from=builder /app/node_modules/sharp ./node_modules/sharp
+
+# Create directories with proper permissions
 RUN mkdir -p /app/uploads/templates \
     /app/uploads/models \
     /app/uploads/reports \
     /app/uploads/outlooks \
     /app/uploads/examples \
-    && chown -R nextjs:nodejs /app/uploads
-
-# Set user
-USER nextjs
+    /app/.next/cache \
+    && chmod -R 777 /app/uploads /app/.next/cache
 
 # Expose port
 EXPOSE 3000
