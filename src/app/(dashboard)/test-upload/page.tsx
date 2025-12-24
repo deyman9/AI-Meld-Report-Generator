@@ -54,7 +54,7 @@ export default function TestUploadPage() {
   const getAcceptedTypes = () => {
     switch (type) {
       case "model":
-        return ".xlsx,.xls";
+        return ".xlsx,.xls,.xlsm";
       case "template":
       case "outlook":
       case "example":
@@ -87,7 +87,7 @@ export default function TestUploadPage() {
               }}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
             >
-              <option value="model">Model (.xlsx, .xls)</option>
+              <option value="model">Model (.xlsx, .xls, .xlsm)</option>
               <option value="template">Template (.docx)</option>
               <option value="outlook">Economic Outlook (.docx)</option>
               <option value="example">Style Example (.docx)</option>

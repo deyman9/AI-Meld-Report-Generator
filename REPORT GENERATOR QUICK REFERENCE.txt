@@ -1,0 +1,6 @@
+CONVERTIBLE NOTE QUICK REFERENCE
+
+Resource	URL/Location
+Live App	https://ai-meld-report-generator-production.up.railway.app
+Railway Dashboard	https://railway.app
+Google Cloud Console	https://console.cloud.google.com

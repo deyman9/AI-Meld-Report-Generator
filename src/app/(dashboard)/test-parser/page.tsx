@@ -125,7 +125,7 @@ export default function TestParserPage() {
           <div>
             <input
               type="file"
-              accept=".xlsx,.xls"
+              accept=".xlsx,.xls,.xlsm"
               onChange={(e) => setFile(e.target.files?.[0] || null)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200"
             />

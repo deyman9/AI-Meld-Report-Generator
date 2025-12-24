@@ -88,7 +88,7 @@ export default function StepUploadModel({
 
       {/* File Dropzone */}
       <FileDropzone
-        accept=".xlsx,.xls"
+        accept=".xlsx,.xls,.xlsm"
         onFile={handleFile}
         disabled={isParsing}
         uploading={isUploading}

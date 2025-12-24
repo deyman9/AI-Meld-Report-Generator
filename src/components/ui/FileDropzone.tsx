@@ -11,7 +11,7 @@ interface FileDropzoneProps {
 }
 
 export default function FileDropzone({
-  accept = ".xlsx,.xls",
+  accept = ".xlsx,.xls,.xlsm",
   onFile,
   disabled = false,
   uploading = false,
