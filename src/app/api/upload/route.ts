@@ -44,7 +44,7 @@ export async function POST(
       );
     }
 
-    // Validate file extension
+    // Validate file extension (primary validation)
     if (!validateFileExtension(file.name, type)) {
       const allowed = getAllowedExtensionsString(type);
       return NextResponse.json(
@@ -53,14 +53,8 @@ export async function POST(
       );
     }
 
-    // Validate file MIME type
-    if (!validateFileType(file.type, type)) {
-      const allowed = getAllowedExtensionsString(type);
-      return NextResponse.json(
-        { success: false, error: `Invalid file type. Allowed extensions for ${type}: ${allowed}` },
-        { status: 400 }
-      );
-    }
+    // MIME type validation is skipped if extension is valid
+    // Browsers report inconsistent MIME types, especially for .xlsm files
 
     // Validate file size
     if (!validateFileSize(file.size, MAX_FILE_SIZE)) {
