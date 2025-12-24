@@ -60,5 +60,5 @@ USER nextjs
 # Expose port
 EXPOSE 3000
 
-# Run prisma db push then start the app
-CMD npx prisma db push --accept-data-loss && node server.js
+# Start the application
+CMD ["node", "server.js"]
