@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import FileDropzone from "@/components/ui/FileDropzone";
 import ParsedDataPreview from "./ParsedDataPreview";
 import Button from "@/components/ui/Button";
@@ -24,6 +24,35 @@ export default function StepUploadModel({
   const [isUploading, setIsUploading] = useState(false);
   const [isParsing, setIsParsing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Manual override fields
+  const [manualCompanyName, setManualCompanyName] = useState("");
+  const [manualValuationDate, setManualValuationDate] = useState("");
+  const [manualDLOM, setManualDLOM] = useState("");
+  const [currentFilePath, setCurrentFilePath] = useState<string | null>(null);
+  const [currentParsedData, setCurrentParsedData] = useState<ParsedModelResponse | null>(null);
+  
+  // Update manual fields when parsed data changes
+  useEffect(() => {
+    if (parsedData) {
+      setManualCompanyName(parsedData.companyName || "");
+      setManualValuationDate(parsedData.valuationDate ? new Date(parsedData.valuationDate).toISOString().split('T')[0] : "");
+      setManualDLOM(parsedData.dlom ? (parsedData.dlom * 100).toString() : "");
+    }
+  }, [parsedData]);
+  
+  // Update parent when manual fields change
+  const updateParentWithManualData = () => {
+    if (currentFilePath && currentParsedData && currentFileName) {
+      const updatedData: ParsedModelResponse = {
+        ...currentParsedData,
+        companyName: manualCompanyName || currentParsedData.companyName,
+        valuationDate: manualValuationDate ? new Date(manualValuationDate).toISOString() : currentParsedData.valuationDate,
+        dlom: manualDLOM ? parseFloat(manualDLOM) / 100 : currentParsedData.dlom,
+      };
+      onModelParsed(currentFilePath, currentFileName, updatedData);
+    }
+  };
 
   const handleFile = async (file: File) => {
     setError(null);
@@ -67,6 +96,15 @@ export default function StepUploadModel({
         throw new Error(parseResult.error || "Parsing failed");
       }
 
+      // Store for manual overrides
+      setCurrentFilePath(uploadResult.filePath);
+      setCurrentParsedData(parseResult.data);
+      
+      // Pre-fill manual fields
+      setManualCompanyName(parseResult.data.companyName || "");
+      setManualValuationDate(parseResult.data.valuationDate ? new Date(parseResult.data.valuationDate).toISOString().split('T')[0] : "");
+      setManualDLOM(parseResult.data.dlom ? (parseResult.data.dlom * 100).toString() : "");
+      
       // Success - call parent callback
       onModelParsed(uploadResult.filePath, file.name, parseResult.data);
     } catch (err) {
@@ -137,14 +175,75 @@ export default function StepUploadModel({
 
       {/* Parsed Data Preview */}
       {parsedData && !error && <ParsedDataPreview data={parsedData} />}
+      
+      {/* Manual Override Fields - shown after parsing */}
+      {currentParsedData && !error && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-4">
+          <div className="flex items-center gap-2 mb-2">
+            <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            <h3 className="font-medium text-blue-800">Edit Extracted Data</h3>
+          </div>
+          <p className="text-sm text-blue-700 mb-3">
+            Review and correct the extracted values if needed:
+          </p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Company Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={manualCompanyName}
+                onChange={(e) => setManualCompanyName(e.target.value)}
+                onBlur={updateParentWithManualData}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Enter company name"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Valuation Date <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="date"
+                value={manualValuationDate}
+                onChange={(e) => setManualValuationDate(e.target.value)}
+                onBlur={updateParentWithManualData}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                DLOM (%)
+              </label>
+              <input
+                type="number"
+                value={manualDLOM}
+                onChange={(e) => setManualDLOM(e.target.value)}
+                onBlur={updateParentWithManualData}
+                min="0"
+                max="50"
+                step="0.1"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                placeholder="e.g., 15"
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Help text */}
       <div className="text-sm text-gray-500 bg-gray-50 p-4 rounded-lg">
-        <p className="font-medium text-gray-700 mb-2">Expected file structure:</p>
+        <p className="font-medium text-gray-700 mb-2">Supported formats:</p>
         <ul className="list-disc list-inside space-y-1">
-          <li>Sheet named &quot;LEs&quot; with company info in cells G819 and G824</li>
-          <li>Exhibits bounded by &quot;start&quot; and &quot;end&quot; sheets</li>
-          <li>Summary sheet with valuation approaches and weights</li>
+          <li>Excel files (.xlsx, .xls, .xlsm)</li>
+          <li>Company name and valuation date can be entered manually</li>
+          <li>Exhibits and valuation approaches are auto-detected</li>
         </ul>
       </div>
     </div>

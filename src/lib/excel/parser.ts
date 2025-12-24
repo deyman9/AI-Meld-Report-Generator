@@ -18,43 +18,23 @@ export async function loadWorkbook(filePath: string): Promise<WorkbookData> {
   try {
     const buffer = readFileSync(filePath);
     
-    // First pass: get sheet names only (minimal memory)
-    const sheetNamesOnly = XLSX.read(buffer, { 
-      type: 'buffer',
-      bookSheets: true,  // Only read sheet names
-    });
-    
-    // Identify which sheets we actually need
-    const allSheetNames = sheetNamesOnly.SheetNames;
-    const essentialPatterns = [
-      /^les?$/i, /liquidation/i, /summary/i, /valuation/i,
-      /market/i, /income/i, /opm/i, /dlom/i, /start$/i, /end$/i
-    ];
-    
-    const sheetsToLoad = allSheetNames.filter(name => 
-      essentialPatterns.some(pattern => pattern.test(name))
-    );
-    
-    // If no matches, take first 10 sheets
-    const finalSheets = sheetsToLoad.length > 0 ? sheetsToLoad : allSheetNames.slice(0, 10);
-    
-    console.log(`Loading ${finalSheets.length} of ${allSheetNames.length} sheets: ${finalSheets.join(', ')}`);
-    
-    // Second pass: load only essential sheets
+    // Memory-efficient parsing - only get sheet structure, not cell data
     const rawWorkbook = XLSX.read(buffer, { 
       type: 'buffer',
       cellDates: true,
-      cellNF: false,
-      cellStyles: false,
-      sheetStubs: false,
-      bookVBA: false,
-      sheets: finalSheets,  // Only load these sheets
+      cellNF: false,  // Don't parse number formats
+      cellStyles: false,  // Don't parse styles
+      sheetStubs: false,  // Don't create stubs for empty cells
+      bookVBA: false,  // Don't parse VBA macros
+      dense: true,  // Use dense array format - more memory efficient
     });
 
     const sheets: SheetInfo[] = rawWorkbook.SheetNames.map((name, index) => ({
       name,
       index,
     }));
+    
+    console.log(`Loaded workbook with ${sheets.length} sheets: ${sheets.map(s => s.name).join(', ')}`);
 
     return {
       sheets,
@@ -99,7 +79,27 @@ export function findExhibitBoundaries(workbook: WorkbookData): ExhibitBoundaries
 }
 
 /**
+ * Converts A1-style address to row/col indices (0-based)
+ */
+function addressToRowCol(address: string): { row: number; col: number } | null {
+  const match = address.match(/^([A-Z]+)(\d+)$/i);
+  if (!match) return null;
+  
+  const colStr = match[1].toUpperCase();
+  const row = parseInt(match[2], 10) - 1;
+  
+  let col = 0;
+  for (let i = 0; i < colStr.length; i++) {
+    col = col * 26 + (colStr.charCodeAt(i) - 64);
+  }
+  col -= 1;
+  
+  return { row, col };
+}
+
+/**
  * Gets value from a specific cell
+ * Supports both dense and sparse sheet formats
  */
 export function getCellValue(
   workbook: WorkbookData, 
@@ -111,7 +111,19 @@ export function getCellValue(
     return null;
   }
 
-  const cell = sheet[cellAddress];
+  let cell;
+  
+  // Check if using dense format (has !data property)
+  if (sheet['!data']) {
+    const pos = addressToRowCol(cellAddress);
+    if (!pos) return null;
+    const row = sheet['!data'][pos.row];
+    cell = row ? row[pos.col] : null;
+  } else {
+    // Sparse format - direct access
+    cell = sheet[cellAddress];
+  }
+  
   if (!cell) {
     return null;
   }
@@ -136,6 +148,7 @@ export function getCellValue(
 
 /**
  * Gets all data from a sheet as 2D array
+ * Supports both dense and sparse sheet formats
  */
 export function getSheetData(workbook: WorkbookData, sheetName: string): unknown[][] {
   const sheet = workbook.rawWorkbook.Sheets[sheetName];
@@ -143,6 +156,14 @@ export function getSheetData(workbook: WorkbookData, sheetName: string): unknown
     return [];
   }
 
+  // For dense format, data is already in !data array
+  if (sheet['!data']) {
+    return (sheet['!data'] as unknown[][]).map(row => 
+      row ? row.map(cell => cell ? (cell as { v?: unknown }).v ?? null : null) : []
+    );
+  }
+
+  // Sparse format - use xlsx utility
   const data = XLSX.utils.sheet_to_json(sheet, { 
     header: 1,
     defval: null,
