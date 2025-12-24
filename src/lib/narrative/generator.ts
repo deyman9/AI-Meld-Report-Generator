@@ -11,8 +11,6 @@ import {
   buildGuidelineCompanyPrompt,
   buildMATransactionPrompt,
   buildIncomeApproachPrompt,
-  buildBacksolvePrompt,
-  buildOPMPrompt,
   buildConclusionPrompt,
   buildGenericApproachPrompt,
   canGenerateApproachSection,
@@ -26,10 +24,12 @@ import type {
   ApproachType,
   WeightData,
   WeightingAnalysis,
+  ApproachSelection,
 } from "@/types/narrative";
 
 /**
  * Identify the type of valuation approach from its name
+ * Note: Backsolve/OPM uses templated language, not AI-generated narratives
  */
 export function identifyApproachType(approachName: string): ApproachType {
   const name = approachName.toLowerCase();
@@ -46,12 +46,6 @@ export function identifyApproachType(approachName: string): ApproachType {
   if (name.includes("ccf") || name.includes("capitalized cash")) {
     return "income_ccf";
   }
-  if (name.includes("backsolve") || name.includes("back-solve")) {
-    return "backsolve";
-  }
-  if (name.includes("opm") || name.includes("option pricing")) {
-    return "opm";
-  }
   if (name.includes("asset") || name.includes("nav") || name.includes("book")) {
     return "asset";
   }
@@ -63,9 +57,22 @@ export function identifyApproachType(approachName: string): ApproachType {
 }
 
 /**
+ * Check if approach type should be AI-generated (not backsolve/OPM which use templates)
+ */
+export function shouldGenerateNarrative(approachName: string): boolean {
+  const name = approachName.toLowerCase();
+  // Backsolve/OPM use templated methodology language, not company-specific AI narrative
+  if (name.includes("backsolve") || name.includes("back-solve") || 
+      name.includes("opm") || name.includes("option pricing")) {
+    return false;
+  }
+  return true;
+}
+
+/**
  * Map approach type to detailed data check type
  */
-function getApproachCheckType(approachType: ApproachType): 'gpc' | 'gtm' | 'income' | 'backsolve' | null {
+function getApproachCheckType(approachType: ApproachType): 'gpc' | 'gtm' | 'income' | null {
   switch (approachType) {
     case "guideline_public_company":
       return 'gpc';
@@ -74,9 +81,6 @@ function getApproachCheckType(approachType: ApproachType): 'gpc' | 'gtm' | 'inco
     case "income_dcf":
     case "income_ccf":
       return 'income';
-    case "backsolve":
-    case "opm":
-      return 'backsolve';
     default:
       return null;
   }
@@ -107,6 +111,7 @@ export async function generateApproachNarrative(
   }
 
   // Select appropriate prompt builder
+  // Note: Backsolve/OPM uses templated methodology language, not AI-generated
   let prompt: string;
   switch (approachType) {
     case "guideline_public_company":
@@ -118,12 +123,6 @@ export async function generateApproachNarrative(
     case "income_dcf":
     case "income_ccf":
       prompt = buildIncomeApproachPrompt(approach, context);
-      break;
-    case "backsolve":
-      prompt = buildBacksolvePrompt(approach, context);
-      break;
-    case "opm":
-      prompt = buildOPMPrompt(approach, context);
       break;
     default:
       prompt = buildGenericApproachPrompt(approach, context);
@@ -147,26 +146,16 @@ export async function generateApproachNarrative(
 
 /**
  * Analyze approach weights and apply heuristics
+ * For the 3 AI-generated approaches: GPC, GTM, and Income
  */
 export function analyzeWeighting(
   approaches: ApproachData[],
-  valuationDate?: Date,
-  opmDate?: Date,
-  lastFundingDate?: Date,
+  _valuationDate?: Date,
   isPreRevenue?: boolean
 ): WeightingAnalysis {
   const warnings: string[] = [];
   const appliedHeuristics: string[] = [];
   const suggestedWeights: WeightData[] = [];
-
-  // Calculate days since various events
-  const now = valuationDate || new Date();
-  const opmAgeMonths = opmDate
-    ? (now.getTime() - opmDate.getTime()) / (1000 * 60 * 60 * 24 * 30)
-    : null;
-  const fundingAgeMonths = lastFundingDate
-    ? (now.getTime() - lastFundingDate.getTime()) / (1000 * 60 * 60 * 24 * 30)
-    : null;
 
   let rationale = "The concluded value was determined by weighting the indicated values from each approach based on their relevance and reliability. ";
 
@@ -175,25 +164,22 @@ export function analyzeWeighting(
     let suggestedWeight = approach.weight || 0;
     let weightRationale = "";
 
-    // Apply heuristics
-    if (type === "opm" && opmAgeMonths && opmAgeMonths > 12) {
-      suggestedWeight = Math.min(suggestedWeight, 0.1);
-      warnings.push(`OPM is ${Math.round(opmAgeMonths)} months old - consider reducing weight`);
-      appliedHeuristics.push("OPM > 12 months: minimal weight");
-      weightRationale = "Limited weight due to age of OPM analysis";
-    }
-
-    if (type === "backsolve" && fundingAgeMonths !== null && fundingAgeMonths < 6) {
-      suggestedWeight = Math.max(suggestedWeight, 0.4);
-      appliedHeuristics.push("Recent funding < 6 months: higher backsolve weight");
-      weightRationale = "Significant weight given recency of arm's-length transaction";
-    }
-
+    // Apply heuristics for the 3 AI-generated approaches
+    // Note: Backsolve/OPM uses templated language and is not AI-generated
+    
     if ((type === "income_dcf" || type === "income_ccf") && isPreRevenue) {
       suggestedWeight = Math.min(suggestedWeight, 0.15);
       warnings.push("Pre-revenue company - income approach may be less reliable");
       appliedHeuristics.push("Pre-revenue: lower income approach weight");
       weightRationale = "Limited weight due to uncertainty in projections for pre-revenue company";
+    }
+
+    if (type === "guideline_public_company" && !approach.indicatedValue) {
+      warnings.push("Guideline public company approach missing indicated value");
+    }
+
+    if (type === "guideline_transaction" && !approach.indicatedValue) {
+      warnings.push("Guideline transaction approach missing indicated value");
     }
 
     suggestedWeights.push({
@@ -282,6 +268,42 @@ export function determineApproachesToGenerate(
 }
 
 /**
+ * Filter approaches based on user selection
+ */
+function filterApproachesBySelection(
+  approaches: ApproachData[],
+  selectedApproaches?: ApproachSelection
+): ApproachData[] {
+  if (!selectedApproaches) {
+    // If no selection provided, use all approaches (legacy behavior)
+    // But filter out backsolve/OPM which use templated language
+    return approaches.filter(a => shouldGenerateNarrative(a.name));
+  }
+
+  return approaches.filter(approach => {
+    const approachType = identifyApproachType(approach.name);
+    
+    // Skip backsolve/OPM - they use templated language
+    if (!shouldGenerateNarrative(approach.name)) {
+      return false;
+    }
+
+    // Check if user selected this approach type
+    switch (approachType) {
+      case "guideline_public_company":
+        return selectedApproaches.guidelinePublicCompany;
+      case "guideline_transaction":
+        return selectedApproaches.guidelineTransaction;
+      case "income_dcf":
+      case "income_ccf":
+        return selectedApproaches.incomeApproach;
+      default:
+        return true; // Include other approaches by default
+    }
+  });
+}
+
+/**
  * Generate all narratives for a valuation report
  * Enhanced with detailed data for company-specific output
  */
@@ -289,11 +311,20 @@ export async function generateAllNarratives(
   parsedModel: ParsedModel,
   qualitativeContext?: string,
   companyResearch?: { description: string; industry: string },
-  reportType: "FOUR09A" | "FIFTY_NINE_SIXTY" = "FOUR09A"
+  reportType: "FOUR09A" | "FIFTY_NINE_SIXTY" = "FOUR09A",
+  selectedApproaches?: ApproachSelection
 ): Promise<NarrativeSet> {
   const warnings: string[] = [];
-  const approaches = parsedModel.summary?.approaches || [];
+  const allApproaches = parsedModel.summary?.approaches || [];
   const detailedData = parsedModel.detailedData;
+  
+  // Filter approaches based on user selection
+  const approaches = filterApproachesBySelection(allApproaches, selectedApproaches);
+  
+  console.log(`\n=== Generating narratives for ${approaches.length} approaches ===`);
+  if (selectedApproaches) {
+    console.log('User selections:', selectedApproaches);
+  }
 
   // Log data availability for debugging
   console.log('\n=== Data Availability for AI Generation ===');

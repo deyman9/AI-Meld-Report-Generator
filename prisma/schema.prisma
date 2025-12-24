@@ -94,18 +94,19 @@ model EconomicOutlook {
 }
 
 model Engagement {
-  id              String           @id @default(cuid())
-  userId          String
-  companyName     String?
-  valuationDate   DateTime?
-  reportType      ReportType
-  status          EngagementStatus @default(DRAFT)
-  modelFilePath   String?
-  qualitativeContext String?
-  errorMessage    String?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  expiresAt       DateTime
+  id                  String           @id @default(cuid())
+  userId              String
+  companyName         String?
+  valuationDate       DateTime?
+  reportType          ReportType
+  status              EngagementStatus @default(DRAFT)
+  modelFilePath       String?
+  qualitativeContext  String?
+  selectedApproaches  Json?            // { guidelinePublicCompany: bool, guidelineTransaction: bool, incomeApproach: bool }
+  errorMessage        String?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  expiresAt           DateTime
 
   user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   generatedReports GeneratedReport[]

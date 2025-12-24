@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { reportType, modelFilePath, qualitativeContext, companyName, valuationDate } = body;
+    const { reportType, modelFilePath, qualitativeContext, companyName, valuationDate, selectedApproaches } = body;
 
     // Validate required fields
     if (!reportType || !modelFilePath) {
@@ -73,6 +73,21 @@ export async function POST(request: NextRequest) {
         { success: false, error: "Report type and model file are required" },
         { status: 400 }
       );
+    }
+
+    // Validate selectedApproaches if provided
+    if (selectedApproaches) {
+      const hasValidApproach = 
+        selectedApproaches.guidelinePublicCompany || 
+        selectedApproaches.guidelineTransaction || 
+        selectedApproaches.incomeApproach;
+      
+      if (!hasValidApproach) {
+        return NextResponse.json(
+          { success: false, error: "At least one valuation approach must be selected" },
+          { status: 400 }
+        );
+      }
     }
 
     // Validate report type
@@ -105,6 +120,7 @@ export async function POST(request: NextRequest) {
         qualitativeContext: qualitativeContext || null,
         companyName: companyName || null,
         valuationDate: parsedValuationDate,
+        selectedApproaches: selectedApproaches || null,
         status: "DRAFT",
         expiresAt,
       },

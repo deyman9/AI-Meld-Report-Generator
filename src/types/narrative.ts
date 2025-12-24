@@ -23,16 +23,21 @@ export interface ApproachNarrative {
   confidence: "high" | "medium" | "low";
 }
 
-// Types of valuation approaches
+// Types of valuation approaches (backsolve/OPM uses templated language, not AI-generated)
 export type ApproachType =
   | "guideline_public_company"
   | "guideline_transaction"
   | "income_dcf"
   | "income_ccf"
-  | "backsolve"
-  | "opm"
   | "asset"
   | "other";
+
+// User selection of which approaches to generate narratives for
+export interface ApproachSelection {
+  guidelinePublicCompany: boolean;
+  guidelineTransaction: boolean;
+  incomeApproach: boolean;
+}
 
 // Weight data for approach weighting
 export interface WeightData {

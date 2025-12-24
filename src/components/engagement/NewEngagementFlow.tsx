@@ -6,14 +6,16 @@ import Card from "@/components/ui/Card";
 import StepIndicator from "./StepIndicator";
 import StepReportType from "./StepReportType";
 import StepUploadModel from "./StepUploadModel";
+import StepSelectApproaches from "./StepSelectApproaches";
 import StepQualitativeContext from "./StepQualitativeContext";
 import StepReview from "./StepReview";
 import GenerationStatus from "./GenerationStatus";
 import type { ParsedModelResponse } from "@/types/excel";
+import type { ApproachSelection } from "@/types/narrative";
 
 type ReportType = "FOUR09A" | "FIFTY_NINE_SIXTY";
 
-const STEPS = ["Report Type", "Upload Model", "Context", "Review"];
+const STEPS = ["Report Type", "Upload Model", "Approaches", "Context", "Review"];
 
 export default function NewEngagementFlow() {
   const [currentStep, setCurrentStep] = useState(1);
@@ -21,6 +23,11 @@ export default function NewEngagementFlow() {
   const [modelFilePath, setModelFilePath] = useState<string | null>(null);
   const [modelFileName, setModelFileName] = useState<string | null>(null);
   const [parsedData, setParsedData] = useState<ParsedModelResponse | null>(null);
+  const [selectedApproaches, setSelectedApproaches] = useState<ApproachSelection>({
+    guidelinePublicCompany: false,
+    guidelineTransaction: false,
+    incomeApproach: false,
+  });
   const [qualitativeContext, setQualitativeContext] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +38,7 @@ export default function NewEngagementFlow() {
   const [engagementId, setEngagementId] = useState<string | null>(null);
 
   const handleNext = () => {
-    if (currentStep < 4) {
+    if (currentStep < 5) {
       setCurrentStep(currentStep + 1);
       setError(null);
     }
@@ -61,6 +68,13 @@ export default function NewEngagementFlow() {
       return;
     }
 
+    // Check at least one approach is selected
+    const hasApproachSelected = Object.values(selectedApproaches).some(Boolean);
+    if (!hasApproachSelected) {
+      setError("Please select at least one valuation approach");
+      return;
+    }
+
     setIsProcessing(true);
     setError(null);
 
@@ -75,6 +89,7 @@ export default function NewEngagementFlow() {
           qualitativeContext: qualitativeContext || null,
           companyName: parsedData.companyName,
           valuationDate: parsedData.valuationDate,
+          selectedApproaches,
         }),
       });
 
@@ -116,8 +131,10 @@ export default function NewEngagementFlow() {
       case 2:
         return parsedData !== null;
       case 3:
-        return true; // Context is optional
+        return Object.values(selectedApproaches).some(Boolean); // At least one approach selected
       case 4:
+        return true; // Context is optional
+      case 5:
         return !isProcessing;
       default:
         return false;
@@ -138,18 +155,26 @@ export default function NewEngagementFlow() {
         );
       case 3:
         return (
+          <StepSelectApproaches
+            value={selectedApproaches}
+            onChange={setSelectedApproaches}
+          />
+        );
+      case 4:
+        return (
           <StepQualitativeContext
             value={qualitativeContext}
             onChange={setQualitativeContext}
           />
         );
-      case 4:
+      case 5:
         return (
           <StepReview
             reportType={reportType!}
             parsedData={parsedData!}
             modelFileName={modelFileName!}
             qualitativeContext={qualitativeContext}
+            selectedApproaches={selectedApproaches}
             onGenerate={handleGenerate}
             isGenerating={isProcessing}
           />
@@ -245,13 +270,13 @@ export default function NewEngagementFlow() {
         </Button>
 
         <div className="flex gap-3">
-          {currentStep === 3 && (
+          {currentStep === 4 && (
             <Button variant="secondary" onClick={handleNext}>
               Skip
             </Button>
           )}
 
-          {currentStep < 4 && (
+          {currentStep < 5 && (
             <Button onClick={handleNext} disabled={!canProceed()}>
               Next
               <svg

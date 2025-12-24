@@ -144,13 +144,26 @@ export async function generateReportContent(
 
   // 5. Generate valuation narratives with detailed data
   console.log("Generating valuation narratives with detailed model data...");
+  
+  // Parse selectedApproaches from engagement (stored as JSON)
+  const selectedApproaches = engagement.selectedApproaches as {
+    guidelinePublicCompany?: boolean;
+    guidelineTransaction?: boolean;
+    incomeApproach?: boolean;
+  } | null;
+  
   const narrativeSet = await generateAllNarratives(
     parsedModel,
     engagement.qualitativeContext || undefined,
     companyResearch
       ? { description: companyResearch.companyDescription, industry: companyResearch.industry }
       : undefined,
-    engagement.reportType
+    engagement.reportType,
+    selectedApproaches ? {
+      guidelinePublicCompany: selectedApproaches.guidelinePublicCompany ?? false,
+      guidelineTransaction: selectedApproaches.guidelineTransaction ?? false,
+      incomeApproach: selectedApproaches.incomeApproach ?? false,
+    } : undefined
   );
 
   // Convert approach narratives to section content

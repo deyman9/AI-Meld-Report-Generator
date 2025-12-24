@@ -240,7 +240,7 @@ DO NOT write generic explanations of what the transaction method is. Reference t
 
 /**
  * Build prompt for Income Approach (DCF) narrative
- * Now includes specific projection and discount rate data
+ * Enhanced with detailed discount rate methodology coverage
  */
 export function buildIncomeApproachPrompt(
   data: ApproachData,
@@ -250,7 +250,7 @@ export function buildIncomeApproachPrompt(
   const incomeData = detailed?.incomeApproachData;
   const financials = detailed?.companyFinancials;
   
-  let prompt = `Write the Income Approach (Discounted Cash Flow) section for a ${context?.reportType === "FOUR09A" ? "409A valuation" : "Gift & Estate valuation"} report.
+  let prompt = `Analyze the Income Approach / DCF exhibits and write 3-4 paragraphs covering:
 
 SUBJECT COMPANY DATA:
 - Company Name: ${context?.companyName || "[Company Name]"}
@@ -308,115 +308,48 @@ ${context.qualitativeContext}
   }
 
   prompt += `
-Write a 2-4 paragraph narrative that:
-1. States the discount rate/WACC used and briefly note how it was derived
-2. Discusses the projection period and key growth assumptions
-3. Explains the terminal value methodology (growth rate or exit multiple)
-4. Summarizes the PV of cash flows and terminal value
-5. States the indicated value from this approach
+PARAGRAPH 1 - Projection Overview:
+- State the projection period used (e.g., 5 years)
+- Summarize the revenue trajectory with specific numbers (Year 1: $X, Year 5: $Y, CAGR of Z%)
+- Describe the profitability trajectory (when does the company reach profitability, what are terminal margins)
+- Note whether projections were provided by management or developed by the analyst
+- Reference specific projection figures from the data above
 
-Reference the SPECIFIC numbers provided above. Do not write generic DCF methodology explanations.`;
+PARAGRAPH 2 - Discount Rate / Cost of Equity:
+- State the concluded discount rate used
+- Identify the methodology: CAPM build-up, WACC, or Venture Capital method
+- If CAPM build-up, detail the components:
+  - Risk-free rate (and source, e.g., 20-year Treasury)
+  - Equity risk premium (and source, e.g., Duff & Phelps, Kroll)
+  - Size premium (and source/size category)
+  - Industry risk premium (if applicable)
+  - Company-specific risk premium (and the specific factors justifying it: customer concentration, key person risk, negative cash flows, early stage, etc.)
+- If WACC, also address cost of debt and capital structure assumptions
+- Explain WHY this rate is appropriate for this specific company's risk profile
 
-  return prompt;
-}
+PARAGRAPH 3 - Terminal Value:
+- State the terminal value methodology used (exit multiple or perpetuity growth)
+- If exit multiple: state the multiple used, what it's based on, and why it's appropriate
+- If perpetuity growth: state the long-term growth rate and why it's reasonable
+- Note what percentage of total value comes from terminal value (if discernible)
 
-/**
- * Build prompt for Backsolve/OPM Method narrative
- * Now includes specific transaction and OPM inputs
- */
-export function buildBacksolvePrompt(
-  data: ApproachData,
-  context?: ExtendedNarrativeContext
-): string {
-  const detailed = context?.detailedData;
-  const backsolve = detailed?.backsolveData;
-  
-  let prompt = `Write the ${backsolve?.methodology === 'opm' ? 'Option Pricing Method (OPM)' : 'Backsolve Method'} section for a 409A valuation report.
+PARAGRAPH 4 - Value Conclusion:
+- State the present value of the projection period cash flows
+- State the present value of the terminal value
+- State the total indicated enterprise value
+- Note adjustments to arrive at equity value (add cash, subtract debt, etc.)
+- State the final indicated equity value from this approach
 
-SUBJECT COMPANY DATA:
-- Company Name: ${context?.companyName || "[Company Name]"}
-- Valuation Date: ${context?.valuationDate || "[Valuation Date]"}
-`;
-
-  if (backsolve) {
-    prompt += `
-${backsolve.methodology === 'opm' ? 'OPM' : 'BACKSOLVE'} INPUTS:
-`;
-    
-    if (backsolve.transactionDate) {
-      prompt += `- Transaction Date: ${backsolve.transactionDate.toLocaleDateString?.() || backsolve.transactionDate}\n`;
-    }
-    if (backsolve.securityType) {
-      prompt += `- Security Type: ${backsolve.securityType}\n`;
-    }
-    if (backsolve.pricePerShare) {
-      prompt += `- Price Per Share: $${backsolve.pricePerShare.toFixed(4)}\n`;
-    }
-    if (backsolve.transactionAmount) {
-      prompt += `- Transaction Amount: ${formatCurrency(backsolve.transactionAmount)}\n`;
-    }
-    if (backsolve.postMoneyValuation) {
-      prompt += `- Post-Money Valuation: ${formatCurrency(backsolve.postMoneyValuation)}\n`;
-    }
-    
-    prompt += `
-OPM ALLOCATION INPUTS:
-- Volatility: ${backsolve.volatility ? formatPercent(backsolve.volatility) : "[Not Available]"}
-- Risk-Free Rate: ${backsolve.riskFreeRate ? formatPercent(backsolve.riskFreeRate) : "[Not Available]"}
-- Time to Liquidity: ${backsolve.timeToLiquidity ? `${backsolve.timeToLiquidity.toFixed(1)} years` : "[Not Available]"}
-`;
-
-    if (backsolve.indicatedCommonValue || backsolve.indicatedPerShareValue) {
-      prompt += `
-ALLOCATION RESULTS:
-${backsolve.indicatedCommonValue ? `- Indicated Common Stock Value: ${formatCurrency(backsolve.indicatedCommonValue)}` : ""}
-${backsolve.indicatedPerShareValue ? `- Indicated Per Share Value: $${backsolve.indicatedPerShareValue.toFixed(4)}` : ""}
-`;
-    }
-  }
-
-  prompt += `
-INDICATED VALUE FROM THIS APPROACH: ${data.indicatedValue ? formatCurrency(data.indicatedValue) : "[Not Available]"}
-WEIGHT ASSIGNED: ${data.weight ? formatPercent(data.weight) : "[Not Specified]"}
-`;
-
-  if (context?.qualitativeContext) {
-    prompt += `
-ANALYST QUALITATIVE CONTEXT:
-${context.qualitativeContext}
-`;
-  }
-
-  prompt += `
-Write a 2-4 paragraph narrative that:
-1. Identifies the specific transaction used (date, security type, amount)
-2. Confirms the arm's-length nature of the transaction
-3. Explains the OPM allocation methodology and key inputs (volatility, time to liquidity)
-4. Notes how the common stock value was derived from the transaction
-5. Discusses the relevance based on transaction recency
-
-Reference the SPECIFIC data above. For standard OPM language, note that volatility was based on publicly traded guideline company analysis and the risk-free rate reflects US Treasury rates.`;
+Reference specific numbers throughout. Do not generalize or use placeholder language.`;
 
   return prompt;
 }
 
-/**
- * Build prompt for OPM narrative (alias for backsolve with OPM context)
- */
-export function buildOPMPrompt(
-  data: ApproachData,
-  context?: ExtendedNarrativeContext
-): string {
-  // Use backsolve prompt but ensure methodology is set to OPM
-  if (context?.detailedData?.backsolveData) {
-    context.detailedData.backsolveData.methodology = 'opm';
-  }
-  return buildBacksolvePrompt(data, context);
-}
+// Note: Backsolve/OPM sections use templated methodology language, not AI-generated narratives
 
 /**
  * Build prompt for valuation conclusion narrative
- * Now includes specific weighting rationale
+ * For the 3 AI-generated approaches: GPC, GTM, and Income
  */
 export function buildConclusionPrompt(
   approaches: ApproachData[],
@@ -425,9 +358,8 @@ export function buildConclusionPrompt(
 ): string {
   const detailed = context?.detailedData;
   const weighting = detailed?.weightingData;
-  const backsolve = detailed?.backsolveData;
   
-  let prompt = `Write the Conclusion and Weighting Rationale section for a ${context?.reportType === "FOUR09A" ? "409A valuation" : "Gift & Estate valuation"} report.
+  let prompt = `Based on the valuation approaches analyzed, write 1-2 paragraphs explaining the weighting and final conclusion.
 
 SUBJECT COMPANY:
 - Company Name: ${context?.companyName || "[Company Name]"}
@@ -463,24 +395,6 @@ ${weighting?.valueAfterDlom ? `- Value After DLOM: ${formatCurrency(weighting.va
 ${weighting?.perShareValue ? `- Per Share Value: $${weighting.perShareValue.toFixed(4)}` : ""}
 `;
 
-  // Add weighting context
-  if (backsolve?.transactionDate) {
-    const txDate = new Date(backsolve.transactionDate);
-    const valuationDate = context?.valuationDate ? new Date(context.valuationDate) : new Date();
-    const monthsAgo = Math.round((valuationDate.getTime() - txDate.getTime()) / (1000 * 60 * 60 * 24 * 30));
-    
-    prompt += `
-WEIGHTING CONTEXT:
-- Most Recent Transaction: ${monthsAgo} months before valuation date
-`;
-    
-    if (monthsAgo <= 6) {
-      prompt += `- Transaction is recent - typically supports higher weight on backsolve/OPM\n`;
-    } else if (monthsAgo > 12) {
-      prompt += `- Transaction is over 12 months old - may warrant reduced weight\n`;
-    }
-  }
-
   if (context?.qualitativeContext) {
     prompt += `
 ANALYST QUALITATIVE CONTEXT:
@@ -489,16 +403,24 @@ ${context.qualitativeContext}
   }
 
   prompt += `
-Write a 2-3 paragraph narrative that:
-1. Lists each approach used with its indicated value and weight
-2. Explains WHY each approach received its assigned weight - be specific:
-   - If backsolve has high weight: "given the Series B financing occurred 4 months prior..."
-   - If an approach has low weight: "received reduced weight due to limited comparable data..."
-   - If market approaches differ: "the GPC method received higher weight due to strong comp set..."
-3. Shows the weighted average calculation leading to the concluded value
-4. States the final concluded value with any DLOM applied
+PARAGRAPH 1 - Weighting Rationale:
+- List each approach used and its indicated value
+- State the weight assigned to each approach
+- Explain WHY each approach received its weight:
+  - Market approaches: quality of comparable set, relevance to subject company
+  - Income approach: reliability of projections, stage of company
+  - If income approach received lower/no weight: explain why (e.g., pre-revenue company, unreliable projections)
+  - If market approaches received lower weight: explain why (e.g., limited comparable set, subject company significantly different from comps)
 
-Reference the SPECIFIC values above. Do not write generic weighting platitudes.`;
+PARAGRAPH 2 - Concluded Value:
+- Show the weighted average calculation
+- State the concluded enterprise value
+- Note adjustments for net debt/cash position
+- State the concluded equity value on a marketable basis
+- If DLOM is applied, note it here (the DLOM section itself is templated, but reference the concluded marketable value before DLOM)
+- State the final concluded value and per-share value if applicable
+
+Be specific with numbers. Reference the actual indicated values and weights from the data above.`;
 
   return prompt;
 }
@@ -541,9 +463,10 @@ Reference specific values where available.`;
 
 /**
  * Check if we have sufficient data to generate a specific approach section
+ * Note: Backsolve/OPM uses templated language, not AI-generated
  */
 export function canGenerateApproachSection(
-  approachType: 'gpc' | 'gtm' | 'income' | 'backsolve',
+  approachType: 'gpc' | 'gtm' | 'income',
   detailedData?: DetailedModelData
 ): { canGenerate: boolean; reason: string } {
   if (!detailedData) {
@@ -568,12 +491,6 @@ export function canGenerateApproachSection(
         return { canGenerate: true, reason: 'DCF data found with discount rate' };
       }
       return { canGenerate: false, reason: 'No DCF/income approach data extracted' };
-    
-    case 'backsolve':
-      if (detailedData.backsolveData?.volatility || detailedData.backsolveData?.pricePerShare) {
-        return { canGenerate: true, reason: 'Backsolve/OPM data found' };
-      }
-      return { canGenerate: false, reason: 'No backsolve/OPM data extracted' };
     
     default:
       return { canGenerate: false, reason: 'Unknown approach type' };
@@ -623,12 +540,7 @@ export function getDataAvailabilitySummary(detailedData?: DetailedModelData): st
     summary.push('⚠️ No DCF/income approach data found');
   }
 
-  // Backsolve
-  if (detailedData.backsolveData?.volatility) {
-    summary.push(`✓ OPM Data: Volatility ${formatPercent(detailedData.backsolveData.volatility)}`);
-  } else {
-    summary.push('⚠️ No backsolve/OPM data found');
-  }
+  // Note: Backsolve/OPM uses templated language, not AI-generated
 
   // Weighting
   if (detailedData.weightingData?.approaches.length) {

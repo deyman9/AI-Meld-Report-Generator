@@ -2,14 +2,22 @@
 
 import Button from "@/components/ui/Button";
 import type { ParsedModelResponse } from "@/types/excel";
+import type { ApproachSelection } from "@/types/narrative";
 
 type ReportType = "FOUR09A" | "FIFTY_NINE_SIXTY";
+
+const APPROACH_LABELS: Record<keyof ApproachSelection, string> = {
+  guidelinePublicCompany: "Guideline Public Company Method",
+  guidelineTransaction: "Guideline Comparable Transaction Method",
+  incomeApproach: "Income Approach (DCF)",
+};
 
 interface StepReviewProps {
   reportType: ReportType;
   parsedData: ParsedModelResponse;
   modelFileName: string;
   qualitativeContext: string;
+  selectedApproaches: ApproachSelection;
   onGenerate: () => void;
   isGenerating: boolean;
 }
@@ -73,6 +81,7 @@ export default function StepReview({
   parsedData,
   modelFileName,
   qualitativeContext,
+  selectedApproaches,
   onGenerate,
   isGenerating,
 }: StepReviewProps) {
@@ -99,6 +108,10 @@ export default function StepReview({
     !parsedData.companyName ||
     !parsedData.valuationDate ||
     parsedData.warnings.length > 0;
+
+  const selectedApproachList = (Object.keys(selectedApproaches) as Array<keyof ApproachSelection>)
+    .filter(key => selectedApproaches[key])
+    .map(key => APPROACH_LABELS[key]);
 
   return (
     <div className="space-y-6">
@@ -171,6 +184,29 @@ export default function StepReview({
           </div>
         </div>
 
+        {/* Selected Approaches */}
+        <div className="p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <CheckIcon />
+            <div>
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Valuation Approaches
+              </p>
+              <div className="text-gray-900 font-medium">
+                {selectedApproachList.length > 0 ? (
+                  <ul className="list-disc list-inside text-sm space-y-0.5 mt-1">
+                    {selectedApproachList.map((name, i) => (
+                      <li key={i}>{name}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <span className="text-amber-600 italic">No approaches selected</span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Context */}
         <div className="p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -236,10 +272,15 @@ export default function StepReview({
           <li>• Company Overview</li>
           <li>• Industry Outlook (with citations)</li>
           <li>• Economic Outlook</li>
-          <li>• Valuation Analysis for each approach used</li>
+          {selectedApproachList.map((name, i) => (
+            <li key={i}>• Valuation Analysis - {name}</li>
+          ))}
           <li>• Conclusion & Weighting Rationale</li>
           <li>• Flags & Review Notes</li>
         </ul>
+        <p className="mt-3 text-xs text-blue-600">
+          Note: Backsolve/OPM section uses standard templated language and is not included in AI generation.
+        </p>
       </div>
 
       {/* Generate Button */}
