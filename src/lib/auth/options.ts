@@ -18,17 +18,22 @@ export const authOptions: NextAuthOptions = {
         e.trim().toLowerCase()
       );
 
+      console.log(`[AUTH] Sign-in attempt for email: ${user.email}`);
+      console.log(`[AUTH] Allowed emails: ${JSON.stringify(allowedEmails)}`);
+
       if (!user.email) {
+        console.log(`[AUTH] Denied: No email provided`);
         return false;
       }
 
       const userEmail = user.email.toLowerCase();
 
       if (!allowedEmails?.includes(userEmail)) {
-        console.log(`Access denied for email: ${userEmail}`);
-        return false;
+        console.log(`[AUTH] Access denied for email: ${userEmail}`);
+        return "/login?error=AccessDenied";
       }
 
+      console.log(`[AUTH] Access granted for email: ${userEmail}`);
       return true;
     },
     async session({ session, user }) {
