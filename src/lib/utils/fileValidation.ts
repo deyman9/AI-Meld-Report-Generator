@@ -6,8 +6,9 @@ export const ALLOWED_TYPES: Record<UploadType, { mimeTypes: string[]; extensions
     mimeTypes: [
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'application/vnd.ms-excel',
+      'application/vnd.ms-excel.sheet.macroEnabled.12',
     ],
-    extensions: ['.xlsx', '.xls'],
+    extensions: ['.xlsx', '.xls', '.xlsm'],
   },
   template: {
     mimeTypes: ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
