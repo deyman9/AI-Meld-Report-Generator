@@ -8,6 +8,33 @@ interface ParseModelRequest {
   filePath: string;
 }
 
+/**
+ * Check if file is a PDF
+ */
+function isPdfFile(filePath: string): boolean {
+  return filePath.toLowerCase().endsWith('.pdf');
+}
+
+/**
+ * Create a response for PDF files - requires manual input
+ */
+function createPdfResponse(): ParsedModelResponse {
+  return {
+    companyName: null,
+    valuationDate: null,
+    exhibitCount: 1,
+    exhibitNames: ['PDF Exhibits'],
+    approaches: [],
+    concludedValue: null,
+    dlom: null,
+    warnings: [
+      'PDF file uploaded - please enter company name and valuation date manually',
+      'Valuation approaches should be selected manually',
+    ],
+    errors: [],
+  };
+}
+
 // POST - Parse a valuation model
 export async function POST(
   request: NextRequest
@@ -24,11 +51,18 @@ export async function POST(
     const body = await request.json() as ParseModelRequest;
     const { filePath } = body;
 
-    // Validate file path
-    const validation = validateModelFilePath(filePath);
-    if (!validation.valid) {
+    // Validate file path - allow PDFs too
+    if (!filePath) {
       return NextResponse.json(
-        { success: false, error: validation.error },
+        { success: false, error: 'File path is required' },
+        { status: 400 }
+      );
+    }
+
+    const extension = filePath.toLowerCase().split('.').pop();
+    if (!extension || !['xlsx', 'xls', 'xlsm', 'pdf'].includes(extension)) {
+      return NextResponse.json(
+        { success: false, error: 'File must be an Excel file (.xlsx, .xls, .xlsm) or PDF (.pdf)' },
         { status: 400 }
       );
     }
@@ -42,7 +76,24 @@ export async function POST(
       );
     }
 
-    // Parse the model
+    // Handle PDF files differently - no parsing, just return skeleton
+    if (isPdfFile(filePath)) {
+      console.log('PDF file detected - returning manual input response');
+      return NextResponse.json({
+        success: true,
+        data: createPdfResponse(),
+      });
+    }
+
+    // Parse Excel model
+    const validation = validateModelFilePath(filePath);
+    if (!validation.valid) {
+      return NextResponse.json(
+        { success: false, error: validation.error },
+        { status: 400 }
+      );
+    }
+
     const parsedModel = await parseValuationModel(filePath);
 
     // Check for critical errors

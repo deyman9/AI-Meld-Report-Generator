@@ -118,15 +118,15 @@ export default function StepUploadModel({
   return (
     <div className="space-y-6">
       <div className="text-center mb-8">
-        <h2 className="text-2xl font-bold text-gray-900">Upload Valuation Model</h2>
+        <h2 className="text-2xl font-bold text-gray-900">Upload Valuation Exhibits</h2>
         <p className="mt-2 text-gray-500">
-          Upload your Excel valuation model to extract company information
+          Upload your valuation model (Excel or PDF) to extract company information
         </p>
       </div>
 
       {/* File Dropzone */}
       <FileDropzone
-        accept=".xlsx,.xls,.xlsm"
+        accept=".xlsx,.xls,.xlsm,.pdf"
         onFile={handleFile}
         disabled={isParsing}
         uploading={isUploading}
@@ -241,9 +241,9 @@ export default function StepUploadModel({
       <div className="text-sm text-gray-500 bg-gray-50 p-4 rounded-lg">
         <p className="font-medium text-gray-700 mb-2">Supported formats:</p>
         <ul className="list-disc list-inside space-y-1">
-          <li>Excel files (.xlsx, .xls, .xlsm)</li>
+          <li>PDF files (.pdf) - Exhibits in PDF format</li>
+          <li>Excel files (.xlsx, .xls, .xlsm) - Valuation models</li>
           <li>Company name and valuation date can be entered manually</li>
-          <li>Exhibits and valuation approaches are auto-detected</li>
         </ul>
       </div>
     </div>
