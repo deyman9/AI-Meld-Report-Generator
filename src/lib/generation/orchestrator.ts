@@ -14,6 +14,8 @@ import {
   GUIDELINE_TRANSACTION_PROMPT,
   INCOME_APPROACH_PROMPT,
   CONCLUSION_PROMPT,
+  COMPANY_OVERVIEW_PROMPT,
+  INDUSTRY_OUTLOOK_PROMPT,
 } from "@/lib/ai/prompts/approachPrompts";
 import type { Engagement } from "@prisma/client";
 import type { ParsedModel } from "@/types/excel";
@@ -64,76 +66,138 @@ export async function generateReportContent(
   let economicOutlook: SectionContent = createEmptySection("Economic outlook not loaded");
   let industryCitations: Citation[] = [];
 
+  // Check if we have a PDF file - if so, use PDF analysis for company and industry
+  const modelFilePath = engagement.modelFilePath;
+  const hasPdfFile = modelFilePath && isPdfFile(modelFilePath);
+
   // 1. Load required resources
   console.log("Loading resources...");
   const economicOutlookDoc = await loadEconomicOutlook(valuationDate);
 
-  // 2. Generate company research
+  // 2. Generate company overview
   let companyResearch: CompanyResearch | null = null;
   if (opts.includeCompanyResearch) {
-    try {
-      console.log(`Researching company: ${companyName}`);
-      companyResearch = await researchCompany(companyName, engagement.qualitativeContext || undefined);
+    if (hasPdfFile && modelFilePath) {
+      // Use PDF analysis for company overview
+      try {
+        console.log(`Generating company overview from PDF: ${modelFilePath}`);
+        const pdfCompanyOverview = await generateWithPDF(
+          modelFilePath,
+          VALUATION_SYSTEM_PROMPT,
+          COMPANY_OVERVIEW_PROMPT,
+          engagement.qualitativeContext || undefined
+        );
 
-      companyOverview = {
-        content: companyResearch.companyDescription,
-        source: "ai",
-        confidence: companyResearch.confidence === "high" ? 0.9 : companyResearch.confidence === "medium" ? 0.7 : 0.5,
-        warnings: companyResearch.warnings,
-      };
-
-      if (companyResearch.limitedInfo) {
+        companyOverview = {
+          content: pdfCompanyOverview,
+          source: "ai",
+          confidence: 0.9,
+        };
+        console.log("✓ Company overview generated from PDF");
+      } catch (error) {
+        console.error("PDF company overview failed:", error);
+        warnings.push("Failed to generate company overview from PDF");
         flags.push({
           section: "companyOverview",
-          message: "Limited company information available - review required",
-          type: "review",
+          message: "Failed to generate company overview from PDF",
+          type: "error",
         });
       }
-    } catch (error) {
-      console.error("Company research failed:", error);
-      warnings.push("Company research failed - manual entry required");
-      flags.push({
-        section: "companyOverview",
-        message: "Failed to generate company overview",
-        type: "error",
-      });
+    } else {
+      // Use web research for company overview
+      try {
+        console.log(`Researching company: ${companyName}`);
+        companyResearch = await researchCompany(companyName, engagement.qualitativeContext || undefined);
+
+        companyOverview = {
+          content: companyResearch.companyDescription,
+          source: "ai",
+          confidence: companyResearch.confidence === "high" ? 0.9 : companyResearch.confidence === "medium" ? 0.7 : 0.5,
+          warnings: companyResearch.warnings,
+        };
+
+        if (companyResearch.limitedInfo) {
+          flags.push({
+            section: "companyOverview",
+            message: "Limited company information available - review required",
+            type: "review",
+          });
+        }
+      } catch (error) {
+        console.error("Company research failed:", error);
+        warnings.push("Company research failed - manual entry required");
+        flags.push({
+          section: "companyOverview",
+          message: "Failed to generate company overview",
+          type: "error",
+        });
+      }
     }
   }
 
-  // 3. Generate industry research
+  // 3. Generate industry outlook
   if (opts.includeIndustryResearch) {
-    const industryName = companyResearch?.industry || "Technology"; // Default if unknown
+    if (hasPdfFile && modelFilePath) {
+      // Use PDF analysis for industry outlook
+      try {
+        console.log(`Generating industry outlook from PDF: ${modelFilePath}`);
+        const pdfIndustryOutlook = await generateWithPDF(
+          modelFilePath,
+          VALUATION_SYSTEM_PROMPT,
+          INDUSTRY_OUTLOOK_PROMPT,
+          engagement.qualitativeContext || undefined
+        );
 
-    try {
-      console.log(`Researching industry: ${industryName}`);
-      const industryResearch = await researchIndustry(
-        industryName,
-        companyResearch?.companyDescription
-      );
-
-      const formatted = formatIndustryWithCitations(industryResearch);
-      industryOutlook = {
-        content: formatted.content,
-        source: "ai",
-        confidence: industryResearch.confidence === "high" ? 0.9 : industryResearch.confidence === "medium" ? 0.7 : 0.5,
-      };
-      industryCitations = industryResearch.citations;
-
-      if (industryResearch.confidence === "low") {
+        industryOutlook = {
+          content: pdfIndustryOutlook,
+          source: "ai",
+          confidence: 0.9,
+        };
+        console.log("✓ Industry outlook generated from PDF");
+      } catch (error) {
+        console.error("PDF industry outlook failed:", error);
+        warnings.push("Failed to generate industry outlook from PDF");
         flags.push({
           section: "industryOutlook",
-          message: "Limited industry information available - review required",
-          type: "review",
+          message: "Failed to generate industry outlook from PDF",
+          type: "error",
         });
       }
-    } catch (error) {
-      console.error("Industry research failed:", error);
-      warnings.push("Industry research failed - manual entry required");
-      flags.push({
-        section: "industryOutlook",
-        message: "Failed to generate industry outlook",
-        type: "error",
-      });
+    } else {
+      // Use web research for industry outlook
+      const industryName = companyResearch?.industry || "Technology";
+
+      try {
+        console.log(`Researching industry: ${industryName}`);
+        const industryResearch = await researchIndustry(
+          industryName,
+          companyResearch?.companyDescription
+        );
+
+        const formatted = formatIndustryWithCitations(industryResearch);
+        industryOutlook = {
+          content: formatted.content,
+          source: "ai",
+          confidence: industryResearch.confidence === "high" ? 0.9 : industryResearch.confidence === "medium" ? 0.7 : 0.5,
+        };
+        industryCitations = industryResearch.citations;
+
+        if (industryResearch.confidence === "low") {
+          flags.push({
+            section: "industryOutlook",
+            message: "Limited industry information available - review required",
+            type: "review",
+          });
+        }
+      } catch (error) {
+        console.error("Industry research failed:", error);
+        warnings.push("Industry research failed - manual entry required");
+        flags.push({
+          section: "industryOutlook",
+          message: "Failed to generate industry outlook",
+          type: "error",
+        });
+      }
     }
   }
 
@@ -162,9 +226,8 @@ export async function generateReportContent(
     incomeApproach?: boolean;
   } | null;
   
-  // Check if we have a PDF file - use PDF analysis if so
-  const modelFilePath = engagement.modelFilePath;
-  const usePdfAnalysis = modelFilePath && isPdfFile(modelFilePath);
+  // Use the PDF analysis flag already determined above
+  const usePdfAnalysis = hasPdfFile;
   
   let narrativeSet: { approachNarratives: ApproachNarrative[]; conclusion: string; warnings: string[] };
   

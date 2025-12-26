@@ -110,40 +110,65 @@ PARAGRAPH 2 - Concluded Value:
 
 Be specific with numbers. Reference the actual indicated values and weights from the exhibits.`;
 
-export const COMPANY_OVERVIEW_PROMPT = `Based on the uploaded PDF exhibits, write 2-3 paragraphs providing a company overview:
+export const COMPANY_OVERVIEW_PROMPT = `Based on the uploaded PDF exhibits, write 4-5 detailed paragraphs providing a comprehensive company overview. Extract ALL relevant information from the exhibits.
 
-PARAGRAPH 1 - Business Description:
-- Identify the subject company name
-- Describe what the company does (products/services)
-- Note the industry and any sub-sector
+PARAGRAPH 1 - Company Identification & Business Description:
+- State the full legal name of the subject company
+- Describe what the company does - its core products, services, and business model
+- Identify the industry sector and any sub-sectors
+- Note the company's geographic focus if mentioned
 
-PARAGRAPH 2 - Key Metrics:
-- State any financial metrics visible (revenue, EBITDA, growth rates)
-- Note the company's stage (early-stage, growth, mature)
-- Mention employee count, customer base, or other size indicators if shown
+PARAGRAPH 2 - Company History & Development:
+- Note when the company was founded if visible
+- Describe any key milestones, funding rounds, or significant events
+- Mention any acquisitions, partnerships, or strategic initiatives
+- Note the company's ownership structure if shown (venture-backed, private equity, founder-owned, etc.)
 
-PARAGRAPH 3 - Valuation Context:
-- Note the valuation date
-- State the purpose of the valuation (409A, estate/gift, transaction, etc.)
-- Mention any relevant context about the company's situation
+PARAGRAPH 3 - Financial Profile:
+- State all financial metrics visible in the exhibits (revenue, EBITDA, gross margin, growth rates)
+- Compare current period to prior periods if shown
+- Note profitability status (profitable, path to profitability, cash burn)
+- Mention any financial projections or forecasts shown
 
-Extract all information from the PDF. If certain information is not visible in the exhibits, note what is available.`;
+PARAGRAPH 4 - Operational Characteristics:
+- Note employee count or headcount if shown
+- Describe customer base characteristics (number of customers, concentration, retention)
+- Mention any key operational metrics (ARR, MRR, churn, NRR for SaaS; units, ASP for product companies)
+- Note competitive position or market share if mentioned
 
-export const INDUSTRY_OUTLOOK_PROMPT = `Based on the uploaded PDF exhibits and your knowledge, write 2-3 paragraphs about the industry outlook:
+PARAGRAPH 5 - Valuation Context:
+- State the valuation date clearly
+- State the purpose of the valuation (409A, gift & estate, transaction, etc.)
+- Note the standard of value (fair market value, fair value, etc.)
+- Mention any relevant context about why the valuation was performed
 
-PARAGRAPH 1 - Industry Identification:
-- Identify the industry based on the subject company and guideline companies in the exhibits
-- Describe the overall industry landscape
+Be thorough and extract every piece of company information visible in the exhibits. Write in formal, third-person language appropriate for a valuation report.`;
 
-PARAGRAPH 2 - Market Trends:
-- Discuss current trends affecting this industry
-- Note growth drivers and headwinds
-- Reference any industry data visible in the exhibits
+export const INDUSTRY_OUTLOOK_PROMPT = `Based on the uploaded PDF exhibits and your knowledge of current market conditions, write 3-4 detailed paragraphs about the industry outlook. This should be relevant to the valuation date shown in the exhibits.
 
-PARAGRAPH 3 - Competitive Landscape:
-- Discuss the competitive environment
-- Reference any guideline companies from the exhibits as industry participants
-- Note market dynamics relevant to valuation
+PARAGRAPH 1 - Industry Identification & Overview:
+- Identify the industry based on the subject company shown in the exhibits
+- Reference the guideline public companies as industry peers
+- Describe the overall industry size and structure
+- Note where the industry is in its lifecycle (emerging, growth, mature, declining)
 
-If the PDF exhibits don't contain industry-specific information, provide relevant industry context based on the identified sector.`;
+PARAGRAPH 2 - Recent Industry Trends & Performance:
+- Discuss key trends affecting this industry as of the valuation date
+- Note how the industry performed in recent periods
+- Discuss growth drivers (technology adoption, demographic shifts, regulatory changes, etc.)
+- Mention any headwinds or challenges facing the industry
+
+PARAGRAPH 3 - Competitive Dynamics:
+- Describe the competitive landscape
+- Note market concentration (fragmented vs. consolidated)
+- Reference the guideline companies from the exhibits as examples of industry participants
+- Discuss barriers to entry, competitive advantages, or market positioning
+
+PARAGRAPH 4 - Outlook & Implications for Valuation:
+- Discuss the near-term and medium-term outlook for the industry
+- Note how industry conditions affect the valuation of companies in this space
+- Discuss any industry-specific valuation considerations
+- Reference how the guideline company multiples reflect industry conditions
+
+Use your knowledge of the industry as of the valuation date. Write in formal language suitable for a valuation report.`;
 
