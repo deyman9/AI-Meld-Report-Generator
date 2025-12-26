@@ -1,11 +1,20 @@
 /**
  * Master Generation Orchestrator
  * Coordinates all content generation for valuation reports
+ * Supports both Excel models and PDF exhibits
  */
 
 import prisma from "@/lib/db/prisma";
 import { researchCompany, researchIndustry, formatIndustryWithCitations } from "@/lib/research";
 import { generateAllNarratives } from "@/lib/narrative";
+import { generateWithPDF, isPdfFile } from "@/lib/ai/generateWithPDF";
+import {
+  VALUATION_SYSTEM_PROMPT,
+  GUIDELINE_PUBLIC_COMPANY_PROMPT,
+  GUIDELINE_TRANSACTION_PROMPT,
+  INCOME_APPROACH_PROMPT,
+  CONCLUSION_PROMPT,
+} from "@/lib/ai/prompts/approachPrompts";
 import type { Engagement } from "@prisma/client";
 import type { ParsedModel } from "@/types/excel";
 import type {
@@ -17,6 +26,7 @@ import type {
   EconomicOutlookContent,
 } from "@/types/generation";
 import type { CompanyResearch, Citation } from "@/types/research";
+import type { ApproachNarrative } from "@/types/narrative";
 import { existsSync } from "fs";
 
 /**
@@ -142,8 +152,8 @@ export async function generateReportContent(
     });
   }
 
-  // 5. Generate valuation narratives with detailed data
-  console.log("Generating valuation narratives with detailed model data...");
+  // 5. Generate valuation narratives
+  console.log("Generating valuation narratives...");
   
   // Parse selectedApproaches from engagement (stored as JSON)
   const selectedApproaches = engagement.selectedApproaches as {
@@ -152,19 +162,39 @@ export async function generateReportContent(
     incomeApproach?: boolean;
   } | null;
   
-  const narrativeSet = await generateAllNarratives(
-    parsedModel,
-    engagement.qualitativeContext || undefined,
-    companyResearch
-      ? { description: companyResearch.companyDescription, industry: companyResearch.industry }
-      : undefined,
-    engagement.reportType,
-    selectedApproaches ? {
-      guidelinePublicCompany: selectedApproaches.guidelinePublicCompany ?? false,
-      guidelineTransaction: selectedApproaches.guidelineTransaction ?? false,
-      incomeApproach: selectedApproaches.incomeApproach ?? false,
-    } : undefined
-  );
+  // Check if we have a PDF file - use PDF analysis if so
+  const modelFilePath = engagement.modelFilePath;
+  const usePdfAnalysis = modelFilePath && isPdfFile(modelFilePath);
+  
+  let narrativeSet: { approachNarratives: ApproachNarrative[]; conclusion: string; warnings: string[] };
+  
+  if (usePdfAnalysis && modelFilePath) {
+    console.log("=== Using PDF Document Analysis ===");
+    console.log("PDF file path:", modelFilePath);
+    
+    // Generate narratives by analyzing the PDF directly
+    narrativeSet = await generatePdfNarratives(
+      modelFilePath,
+      selectedApproaches,
+      engagement.qualitativeContext || undefined
+    );
+  } else {
+    console.log("=== Using Excel Model Data ===");
+    // Use existing Excel-based generation
+    narrativeSet = await generateAllNarratives(
+      parsedModel,
+      engagement.qualitativeContext || undefined,
+      companyResearch
+        ? { description: companyResearch.companyDescription, industry: companyResearch.industry }
+        : undefined,
+      engagement.reportType,
+      selectedApproaches ? {
+        guidelinePublicCompany: selectedApproaches.guidelinePublicCompany ?? false,
+        guidelineTransaction: selectedApproaches.guidelineTransaction ?? false,
+        incomeApproach: selectedApproaches.incomeApproach ?? false,
+      } : undefined
+    );
+  }
 
   // Convert approach narratives to section content
   const valuationAnalysis: Record<string, SectionContent> = {};
@@ -303,6 +333,145 @@ export function validateContent(content: ReportContent): ValidationResult {
     missingRequired,
     reviewNeeded,
   };
+}
+
+/**
+ * Generate narratives by analyzing a PDF document with Claude
+ */
+async function generatePdfNarratives(
+  pdfFilePath: string,
+  selectedApproaches: {
+    guidelinePublicCompany?: boolean;
+    guidelineTransaction?: boolean;
+    incomeApproach?: boolean;
+  } | null,
+  qualitativeContext?: string
+): Promise<{ approachNarratives: ApproachNarrative[]; conclusion: string; warnings: string[] }> {
+  const approachNarratives: ApproachNarrative[] = [];
+  const warnings: string[] = [];
+  
+  const approaches = selectedApproaches || {
+    guidelinePublicCompany: true,
+    guidelineTransaction: true,
+    incomeApproach: true,
+  };
+
+  try {
+    // Generate Guideline Public Company narrative
+    if (approaches.guidelinePublicCompany) {
+      console.log("Generating Guideline Public Company narrative from PDF...");
+      try {
+        const narrative = await generateWithPDF(
+          pdfFilePath,
+          VALUATION_SYSTEM_PROMPT,
+          GUIDELINE_PUBLIC_COMPANY_PROMPT,
+          qualitativeContext
+        );
+        approachNarratives.push({
+          approachName: "Guideline Public Company Method",
+          approachType: "guideline_public_company",
+          narrative,
+          confidence: "high",
+        });
+        console.log("✓ Guideline Public Company narrative generated");
+      } catch (error) {
+        console.error("Error generating GPC narrative:", error);
+        warnings.push("Failed to generate Guideline Public Company narrative");
+        approachNarratives.push({
+          approachName: "Guideline Public Company Method",
+          approachType: "guideline_public_company",
+          narrative: "[GENERATION FAILED - Please review PDF exhibits and write manually]",
+          confidence: "low",
+        });
+      }
+    }
+
+    // Generate Guideline Transaction narrative
+    if (approaches.guidelineTransaction) {
+      console.log("Generating Guideline Transaction narrative from PDF...");
+      try {
+        const narrative = await generateWithPDF(
+          pdfFilePath,
+          VALUATION_SYSTEM_PROMPT,
+          GUIDELINE_TRANSACTION_PROMPT,
+          qualitativeContext
+        );
+        approachNarratives.push({
+          approachName: "Guideline Comparable Transaction Method",
+          approachType: "guideline_transaction",
+          narrative,
+          confidence: "high",
+        });
+        console.log("✓ Guideline Transaction narrative generated");
+      } catch (error) {
+        console.error("Error generating GTM narrative:", error);
+        warnings.push("Failed to generate Guideline Transaction narrative");
+        approachNarratives.push({
+          approachName: "Guideline Comparable Transaction Method",
+          approachType: "guideline_transaction",
+          narrative: "[GENERATION FAILED - Please review PDF exhibits and write manually]",
+          confidence: "low",
+        });
+      }
+    }
+
+    // Generate Income Approach narrative
+    if (approaches.incomeApproach) {
+      console.log("Generating Income Approach narrative from PDF...");
+      try {
+        const narrative = await generateWithPDF(
+          pdfFilePath,
+          VALUATION_SYSTEM_PROMPT,
+          INCOME_APPROACH_PROMPT,
+          qualitativeContext
+        );
+        approachNarratives.push({
+          approachName: "Income Approach (DCF)",
+          approachType: "income_dcf",
+          narrative,
+          confidence: "high",
+        });
+        console.log("✓ Income Approach narrative generated");
+      } catch (error) {
+        console.error("Error generating DCF narrative:", error);
+        warnings.push("Failed to generate Income Approach narrative");
+        approachNarratives.push({
+          approachName: "Income Approach (DCF)",
+          approachType: "income_dcf",
+          narrative: "[GENERATION FAILED - Please review PDF exhibits and write manually]",
+          confidence: "low",
+        });
+      }
+    }
+
+    // Generate Conclusion
+    let conclusion = "";
+    if (approachNarratives.length > 0) {
+      console.log("Generating Conclusion narrative from PDF...");
+      try {
+        conclusion = await generateWithPDF(
+          pdfFilePath,
+          VALUATION_SYSTEM_PROMPT,
+          CONCLUSION_PROMPT,
+          qualitativeContext
+        );
+        console.log("✓ Conclusion narrative generated");
+      } catch (error) {
+        console.error("Error generating conclusion:", error);
+        warnings.push("Failed to generate conclusion narrative");
+        conclusion = "[CONCLUSION GENERATION FAILED - Please write manually based on exhibits]";
+      }
+    }
+
+    return { approachNarratives, conclusion, warnings };
+  } catch (error) {
+    console.error("PDF narrative generation failed:", error);
+    return {
+      approachNarratives: [],
+      conclusion: "[GENERATION FAILED]",
+      warnings: [`PDF analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`],
+    };
+  }
 }
 
 /**
