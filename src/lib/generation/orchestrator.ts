@@ -139,6 +139,10 @@ export async function generateReportContent(
   // 3. Generate industry outlook
   if (opts.includeIndustryResearch) {
     if (hasPdfFile && modelFilePath) {
+      // Wait between API calls to avoid rate limits
+      console.log("Waiting 15s between API calls to avoid rate limits...");
+      await new Promise(resolve => setTimeout(resolve, 15000));
+      
       // Use PDF analysis for industry outlook
       try {
         console.log(`Generating industry outlook from PDF: ${modelFilePath}`);
@@ -235,6 +239,10 @@ export async function generateReportContent(
   if (usePdfAnalysis && modelFilePath) {
     console.log("=== Using PDF Document Analysis ===");
     console.log("PDF file path:", modelFilePath);
+    
+    // Wait between API calls to avoid rate limits (after industry outlook generation)
+    console.log("Waiting 15s before starting valuation narrative generation...");
+    await new Promise(resolve => setTimeout(resolve, 15000));
     
     // Generate narratives by analyzing the PDF directly
     narrativeSet = await generatePdfNarratives(
@@ -400,6 +408,14 @@ export function validateContent(content: ReportContent): ValidationResult {
 }
 
 /**
+ * Helper: Wait between API calls to avoid rate limits
+ */
+async function waitForRateLimit(seconds: number): Promise<void> {
+  console.log(`Waiting ${seconds}s between API calls to avoid rate limits...`);
+  await new Promise(resolve => setTimeout(resolve, seconds * 1000));
+}
+
+/**
  * Generate narratives by analyzing a PDF document with Claude
  */
 async function generatePdfNarratives(
@@ -419,6 +435,9 @@ async function generatePdfNarratives(
     guidelineTransaction: true,
     incomeApproach: true,
   };
+
+  // Delay between API calls (in seconds) to stay under rate limits
+  const API_DELAY = 15;
 
   try {
     // Generate Guideline Public Company narrative
@@ -452,6 +471,7 @@ async function generatePdfNarratives(
 
     // Generate Guideline Transaction narrative
     if (approaches.guidelineTransaction) {
+      await waitForRateLimit(API_DELAY);
       console.log("Generating Guideline Transaction narrative from PDF...");
       try {
         const narrative = await generateWithPDF(
@@ -481,6 +501,7 @@ async function generatePdfNarratives(
 
     // Generate Income Approach narrative
     if (approaches.incomeApproach) {
+      await waitForRateLimit(API_DELAY);
       console.log("Generating Income Approach narrative from PDF...");
       try {
         const narrative = await generateWithPDF(
@@ -511,6 +532,7 @@ async function generatePdfNarratives(
     // Generate Conclusion
     let conclusion = "";
     if (approachNarratives.length > 0) {
+      await waitForRateLimit(API_DELAY);
       console.log("Generating Conclusion narrative from PDF...");
       try {
         conclusion = await generateWithPDF(
@@ -570,17 +592,19 @@ async function loadEconomicOutlook(valuationDate: Date): Promise<EconomicOutlook
       return null;
     }
 
-    console.log(`Found economic outlook: ${outlook.filePath}`);
+    // Clean the file path (remove any leading whitespace/tab characters)
+    const cleanFilePath = outlook.filePath.trim().replace(/^\t+/, '');
+    console.log(`Found economic outlook: ${cleanFilePath} (original: ${outlook.filePath})`);
 
     // Read the document content
-    if (!existsSync(outlook.filePath)) {
-      console.error(`Economic outlook file not found at path: ${outlook.filePath}`);
+    if (!existsSync(cleanFilePath)) {
+      console.error(`Economic outlook file not found at path: ${cleanFilePath}`);
       return null;
     }
 
     // Extract text from Word document using mammoth
     try {
-      const buffer = readFileSync(outlook.filePath);
+      const buffer = readFileSync(cleanFilePath);
       const result = await mammoth.extractRawText({ buffer });
       const content = result.value.trim();
       

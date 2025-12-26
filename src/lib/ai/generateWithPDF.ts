@@ -53,39 +53,60 @@ export async function generateWithPDF(
   console.log("Making Claude API call with PDF document...");
   console.log("Prompt length:", fullUserPrompt.length, "characters");
 
-  // Step 4: Make the API call with the PDF included
+  // Step 4: Make the API call with retry logic for rate limits
   let response;
-  try {
-    response = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 4096,
-      system: systemPrompt,
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "document",
-              source: {
-                type: "base64",
-                media_type: "application/pdf",
-                data: pdfBase64,
+  const maxRetries = 3;
+  let lastError: Error | null = null;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`API attempt ${attempt}/${maxRetries}...`);
+      response = await client.messages.create({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 4096,
+        system: systemPrompt,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "document",
+                source: {
+                  type: "base64",
+                  media_type: "application/pdf",
+                  data: pdfBase64,
+                },
               },
-            },
-            {
-              type: "text",
-              text: fullUserPrompt,
-            },
-          ],
-        },
-      ],
-    });
-  } catch (apiError) {
-    console.error("Claude API error:", apiError);
-    if (apiError instanceof Error) {
-      throw new Error(`Claude API failed: ${apiError.message}`);
+              {
+                type: "text",
+                text: fullUserPrompt,
+              },
+            ],
+          },
+        ],
+      });
+      // Success - break out of retry loop
+      break;
+    } catch (apiError) {
+      console.error(`Claude API error (attempt ${attempt}):`, apiError);
+      lastError = apiError instanceof Error ? apiError : new Error(String(apiError));
+      
+      // Check if it's a rate limit error
+      const errorMessage = lastError.message || '';
+      if (errorMessage.includes('429') || errorMessage.includes('rate_limit')) {
+        // Wait before retrying (exponential backoff: 30s, 60s, 90s)
+        const waitTime = attempt * 30000;
+        console.log(`Rate limited. Waiting ${waitTime/1000}s before retry...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      } else {
+        // Non-rate-limit error, don't retry
+        throw new Error(`Claude API failed: ${lastError.message}`);
+      }
     }
-    throw new Error("Claude API failed with unknown error");
+  }
+  
+  if (!response) {
+    throw new Error(`Claude API failed after ${maxRetries} attempts: ${lastError?.message || 'Unknown error'}`);
   }
 
   console.log("Claude API response received");
