@@ -29,7 +29,8 @@ import type {
 } from "@/types/generation";
 import type { CompanyResearch, Citation } from "@/types/research";
 import type { ApproachNarrative } from "@/types/narrative";
-import { existsSync } from "fs";
+import { existsSync, readFileSync } from "fs";
+import mammoth from "mammoth";
 
 /**
  * Default generation options
@@ -555,6 +556,8 @@ async function loadEconomicOutlook(valuationDate: Date): Promise<EconomicOutlook
   const quarter = getQuarter(valuationDate);
   const year = valuationDate.getFullYear();
 
+  console.log(`Looking for economic outlook for Q${quarter} ${year}...`);
+
   try {
     const outlook = await prisma.economicOutlook.findUnique({
       where: {
@@ -563,25 +566,41 @@ async function loadEconomicOutlook(valuationDate: Date): Promise<EconomicOutlook
     });
 
     if (!outlook) {
+      console.log(`No economic outlook found in database for Q${quarter} ${year}`);
       return null;
     }
+
+    console.log(`Found economic outlook: ${outlook.filePath}`);
 
     // Read the document content
     if (!existsSync(outlook.filePath)) {
-      console.error(`Economic outlook file not found: ${outlook.filePath}`);
+      console.error(`Economic outlook file not found at path: ${outlook.filePath}`);
       return null;
     }
 
-    // For now, return placeholder - actual document parsing would happen here
-    // In production, use mammoth or similar to extract text from .docx
-    const content = `[Economic outlook content for Q${quarter} ${year} - extracted from ${outlook.filePath}]`;
+    // Extract text from Word document using mammoth
+    try {
+      const buffer = readFileSync(outlook.filePath);
+      const result = await mammoth.extractRawText({ buffer });
+      const content = result.value.trim();
+      
+      console.log(`Extracted ${content.length} characters from economic outlook document`);
 
-    return {
-      quarter,
-      year,
-      content,
-      source: "stored",
-    };
+      if (!content) {
+        console.warn("Economic outlook document is empty");
+        return null;
+      }
+
+      return {
+        quarter,
+        year,
+        content,
+        source: "stored",
+      };
+    } catch (extractError) {
+      console.error("Failed to extract text from economic outlook document:", extractError);
+      return null;
+    }
   } catch (error) {
     console.error("Failed to load economic outlook:", error);
     return null;
