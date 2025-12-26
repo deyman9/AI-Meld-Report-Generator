@@ -5,7 +5,7 @@ import { existsSync, readFileSync } from "fs";
 import { resolve } from "path";
 import mammoth from "mammoth";
 import { generateWithPDF } from "@/lib/ai/generateWithPDF";
-import { VALUATION_SYSTEM_PROMPT, COMPANY_OVERVIEW_PROMPT } from "@/lib/ai/prompts/approachPrompts";
+import { VALUATION_SYSTEM_PROMPT } from "@/lib/ai/prompts/approachPrompts";
 
 export const dynamic = "force-dynamic";
 
